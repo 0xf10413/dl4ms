@@ -1,0 +1,10 @@
+*.npz
+*.pyc
+*.bvh
+*.swp
+__pycache__/
+data/external
+data/processed/cmu
+data/processed/edin*
+data/processed/hdm05
+data/processed/mhad
