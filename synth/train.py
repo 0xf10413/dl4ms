@@ -39,7 +39,8 @@ Xstd[:,-7:-5] = 0.9 * X[:,-7:-5].std()
 Xstd[:,-5:-4] = 0.9 * X[:,-5:-4].std()
 Xstd[:,-4:]   = 0.5
 
-np.savez_compressed('preprocess_core.npz', Xmean=Xmean, Xstd=Xstd)
+print("Saving…")
+np.savez_compressed('preprocess_core_flo.npz', Xmean=Xmean, Xstd=Xstd)
 
 X = (X - Xmean) / Xstd
 
@@ -54,4 +55,5 @@ batchsize = 1
 network = create_core(rng=rng, batchsize=batchsize, window=X.shape[2])
 
 trainer = AdamTrainer(rng=rng, batchsize=batchsize, epochs=100, alpha=0.00001)
-trainer.train(network, E, E, filename='network_core.npz')
+print("Training…")
+trainer.train(network, E, E, filename='network_core_flo.npz')

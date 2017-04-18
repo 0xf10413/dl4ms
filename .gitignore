@@ -2,6 +2,7 @@
 *.pyc
 *.bvh
 *.swp
+*.npy
 __pycache__/
 data/external
 data/processed/cmu

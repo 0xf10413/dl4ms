@@ -1,7 +1,7 @@
 import numpy as np
 import theano
 import theano.tensor as T
-from theano.tensor.nnet import conv
+from theano.tensor.nnet import conv2d
 from theano.tensor.shared_randomstreams import RandomStreams
 
 from Layer import Layer
@@ -33,7 +33,7 @@ class Conv1DLayer(Layer):
         s, f = self.input_shape, self.filter_shape
         zeros = T.basic.zeros((s[0], s[1], (f[2]-1)//2), dtype=theano.config.floatX)
         input = T.concatenate([zeros, input, zeros], axis=2)
-        return conv.conv2d(
+        return conv2d(
             input=input.dimshuffle(0,1,2,'x'),
             filters=self.W.dimshuffle(0,1,2,'x'),
             border_mode='valid',
