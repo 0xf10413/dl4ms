@@ -11,7 +11,7 @@ class DropoutLayer(Layer):
         self.amount = amount
         self.theano_rng = RandomStreams(rng.randint(2 ** 30))
         self.params = []
-        
+
     def __call__(self, input):
         if self.amount > 0.0:
             return (input * self.theano_rng.binomial(

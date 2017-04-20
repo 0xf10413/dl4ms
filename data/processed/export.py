@@ -155,12 +155,12 @@ class_map = {
 }
 
 styletransfer_styles = [
-    'angry', 'childlike', 'depressed', 'neutral', 
+    'angry', 'childlike', 'depressed', 'neutral',
     'old', 'proud', 'sexy', 'strutting']
-    
+
 styletransfer_motions = [
-    'fast_punching', 'fast_walking', 'jumping', 
-    'kicking', 'normal_walking', 'punching', 
+    'fast_punching', 'fast_walking', 'jumping',
+    'kicking', 'normal_walking', 'punching',
     'running', 'transitions']
 
 class_names = list(sorted(list(set(class_map.values()))))
@@ -176,17 +176,17 @@ def softmax(x, **kw):
 
 def softmin(x, **kw):
     return -softmax(-x, **kw)
-    
+
 def process_file(filename, window=240, window_step=120):
-    
+
     anim, names, frametime = BVH.load(filename)
-    
+
     """ Convert to 60 fps """
     anim = anim[::2]
-    
+
     """ Do FK """
     global_positions = Animation.positions_global(anim)
-    
+
     """ Remove Uneeded Joints """
     positions = global_positions[:,np.array([
          0,
@@ -195,63 +195,63 @@ def process_file(filename, window=240, window_step=120):
         12, 13, 15, 16,
         18, 19, 20, 22,
         25, 26, 27, 29])]
-    
+
     """ Put on Floor """
     fid_l, fid_r = np.array([4,5]), np.array([8,9])
     foot_heights = np.minimum(positions[:,fid_l,1], positions[:,fid_r,1]).min(axis=1)
     floor_height = softmin(foot_heights, softness=0.5, axis=0)
-    
+
     positions[:,:,1] -= floor_height
 
     """ Add Reference Joint """
     trajectory_filterwidth = 3
     reference = positions[:,0] * np.array([1,0,1])
-    reference = filters.gaussian_filter1d(reference, trajectory_filterwidth, axis=0, mode='nearest')    
+    reference = filters.gaussian_filter1d(reference, trajectory_filterwidth, axis=0, mode='nearest')
     positions = np.concatenate([reference[:,np.newaxis], positions], axis=1)
-    
+
     """ Get Foot Contacts """
     velfactor, heightfactor = np.array([0.05,0.05]), np.array([3.0, 2.0])
-    
+
     feet_l_x = (positions[1:,fid_l,0] - positions[:-1,fid_l,0])**2
     feet_l_y = (positions[1:,fid_l,1] - positions[:-1,fid_l,1])**2
     feet_l_z = (positions[1:,fid_l,2] - positions[:-1,fid_l,2])**2
     feet_l_h = positions[:-1,fid_l,1]
     feet_l = (((feet_l_x + feet_l_y + feet_l_z) < velfactor) & (feet_l_h < heightfactor)).astype(np.float)
-    
+
     feet_r_x = (positions[1:,fid_r,0] - positions[:-1,fid_r,0])**2
     feet_r_y = (positions[1:,fid_r,1] - positions[:-1,fid_r,1])**2
     feet_r_z = (positions[1:,fid_r,2] - positions[:-1,fid_r,2])**2
     feet_r_h = positions[:-1,fid_r,1]
     feet_r = (((feet_r_x + feet_r_y + feet_r_z) < velfactor) & (feet_r_h < heightfactor)).astype(np.float)
-    
+
     """ Get Root Velocity """
     velocity = (positions[1:,0:1] - positions[:-1,0:1]).copy()
-    
+
     """ Remove Translation """
     positions[:,:,0] = positions[:,:,0] - positions[:,0:1,0]
     positions[:,:,2] = positions[:,:,2] - positions[:,0:1,2]
-    
+
     """ Get Forward Direction """
     sdr_l, sdr_r, hip_l, hip_r = 14, 18, 2, 6
     across1 = positions[:,hip_l] - positions[:,hip_r]
     across0 = positions[:,sdr_l] - positions[:,sdr_r]
     across = across0 + across1
     across = across / np.sqrt((across**2).sum(axis=-1))[...,np.newaxis]
-    
+
     direction_filterwidth = 20
     forward = np.cross(across, np.array([[0,1,0]]))
-    forward = filters.gaussian_filter1d(forward, direction_filterwidth, axis=0, mode='nearest')    
+    forward = filters.gaussian_filter1d(forward, direction_filterwidth, axis=0, mode='nearest')
     forward = forward / np.sqrt((forward**2).sum(axis=-1))[...,np.newaxis]
 
     """ Remove Y Rotation """
     target = np.array([[0,0,1]]).repeat(len(forward), axis=0)
-    rotation = Quaternions.between(forward, target)[:,np.newaxis]    
+    rotation = Quaternions.between(forward, target)[:,np.newaxis]
     positions = rotation * positions
-    
+
     """ Get Root Rotation """
     velocity = rotation[1:] * velocity
     rvelocity = Pivots.from_quaternions(rotation[1:] * -rotation[:-1]).ps
-    
+
     """ Add Velocity, RVelocity, Foot Contacts to vector """
     positions = positions[:-1]
     positions = positions.reshape(len(positions), -1)
@@ -259,13 +259,13 @@ def process_file(filename, window=240, window_step=120):
     positions = np.concatenate([positions, velocity[:,:,2]], axis=-1)
     positions = np.concatenate([positions, rvelocity], axis=-1)
     positions = np.concatenate([positions, feet_l, feet_r], axis=-1)
-        
+
     """ Slide over windows """
     windows = []
     windows_classes = []
-    
+
     for j in range(0, len(positions)-window//8, window_step):
-    
+
         """ If slice too small pad out by repeating start and end poses """
         slice = positions[j:j+window]
         if len(slice) < window:
@@ -274,11 +274,11 @@ def process_file(filename, window=240, window_step=120):
             right = slice[-1:].repeat((window-len(slice))//2, axis=0)
             right[:,-7:-4] = 0.0
             slice = np.concatenate([left, slice, right], axis=0)
-        
+
         if len(slice) != window: raise Exception()
-        
+
         windows.append(slice)
-        
+
         """ Find Class """
         cls = -1
         if filename.startswith('hdm05'):
@@ -290,14 +290,14 @@ def process_file(filename, window=240, window_step=120):
                 styletransfer_motions.index('_'.join(cls_name.split('_')[1:-1])),
                 styletransfer_styles.index(cls_name.split('_')[0])])
         windows_classes.append(cls)
-        
+
     return windows, windows_classes
 
-    
+
 def get_files(directory):
     return [os.path.join(directory,f) for f in sorted(list(os.listdir(directory)))
     if os.path.isfile(os.path.join(directory,f))
-    and f.endswith('.bvh') and f != 'rest.bvh'] 
+    and f.endswith('.bvh') and f != 'rest.bvh']
 
 cmu_files = get_files('cmu')
 cmu_clips = []
@@ -315,12 +315,12 @@ for i, item in enumerate(hdm05_files):
     print('Processing %i of %i (%s)' % (i, len(hdm05_files), item))
     clips, cls = process_file(item)
     hdm05_clips += clips
-    hdm05_classes += cls    
+    hdm05_classes += cls
 data_clips = np.array(hdm05_clips)
 data_classes = np.array(hdm05_classes)
 np.savez_compressed('data_hdm05', clips=data_clips, classes=data_classes)
 
-"""
+
 styletransfer_files = get_files('styletransfer')
 styletransfer_clips = []
 styletransfer_classes = []
@@ -328,17 +328,17 @@ for i, item in enumerate(styletransfer_files):
     print('Processing %i of %i (%s)' % (i, len(styletransfer_files), item))
     clips, cls = process_file(item)
     styletransfer_clips += clips
-    styletransfer_classes += cls    
+    styletransfer_classes += cls
 data_clips = np.array(styletransfer_clips)
 np.savez_compressed('data_styletransfer', clips=data_clips, classes=styletransfer_classes)
-"""
+
 
 edin_locomotion_files = get_files('edin_locomotion')
 edin_locomotion_clips = []
 for i, item in enumerate(edin_locomotion_files):
     print('Processing %i of %i (%s)' % (i, len(edin_locomotion_files), item))
     clips, _ = process_file(item)
-    edin_locomotion_clips += clips    
+    edin_locomotion_clips += clips
 data_clips = np.array(edin_locomotion_clips)
 np.savez_compressed('data_edin_locomotion', clips=data_clips)
 
@@ -347,7 +347,7 @@ edin_xsens_clips = []
 for i, item in enumerate(edin_xsens_files):
     print('Processing %i of %i (%s)' % (i, len(edin_xsens_files), item))
     clips, _ = process_file(item)
-    edin_xsens_clips += clips    
+    edin_xsens_clips += clips
 data_clips = np.array(edin_xsens_clips)
 np.savez_compressed('data_edin_xsens', clips=data_clips)
 
@@ -374,7 +374,7 @@ mhad_clips = []
 for i, item in enumerate(mhad_files):
     print('Processing %i of %i (%s)' % (i, len(mhad_files), item))
     clips, _ = process_file(item)
-    mhad_clips += clips    
+    mhad_clips += clips
 data_clips = np.array(mhad_clips)
 np.savez_compressed('data_mhad', clips=data_clips)
 

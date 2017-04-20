@@ -13,18 +13,17 @@ from network import create_core
 
 rng = np.random.RandomState(23456)
 
-#Xcmu = np.load('../data/processed/data_cmu.npz')['clips']
-#Xhdm05 = np.load('../data/processed/data_hdm05.npz')['clips']
-#Xmhad = np.load('../data/processed/data_mhad.npz')['clips']
-#Xstyletransfer = np.load('../data/processed/data_styletransfer.npz')['clips']
-#Xedin_locomotion = np.load('../data/processed/data_edin_locomotion.npz')['clips']
-#Xedin_xsens = np.load('../data/processed/data_edin_xsens.npz')['clips']
-#Xedin_misc = np.load('../data/processed/data_edin_misc.npz')['clips']
+Xcmu = np.load('../data/processed/data_cmu.npz')['clips']
+Xhdm05 = np.load('../data/processed/data_hdm05.npz')['clips']
+Xmhad = np.load('../data/processed/data_mhad.npz')['clips']
+Xstyletransfer = np.load('../data/processed/data_styletransfer.npz')['clips']
+Xedin_locomotion = np.load('../data/processed/data_edin_locomotion.npz')['clips']
+Xedin_xsens = np.load('../data/processed/data_edin_xsens.npz')['clips']
+Xedin_misc = np.load('../data/processed/data_edin_misc.npz')['clips']
 Xedin_punching = np.load('../data/processed/data_edin_punching.npz')['clips']
 
-#X = np.concatenate([Xcmu, Xhdm05, Xmhad, Xstyletransfer, Xedin_locomotion, Xedin_xsens, Xedin_misc, Xedin_punching], axis=0)
+X = np.concatenate([Xcmu, Xhdm05, Xmhad, Xstyletransfer, Xedin_locomotion, Xedin_xsens, Xedin_misc, Xedin_punching], axis=0)
 #X = np.concatenate([Xcmu, Xhdm05, Xmhad, Xedin_locomotion, Xedin_xsens, Xedin_misc, Xedin_punching], axis=0)
-X = Xedin_punching
 X = np.swapaxes(X, 1, 2).astype(theano.config.floatX)
 
 feet = np.array([12,13,14,15,16,17,24,25,26,27,28,29])

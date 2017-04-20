@@ -14,21 +14,21 @@ class Conv1DLayer(Layer):
         self.input_shape = input_shape
         self.stride = stride
         self.theano_rng = RandomStreams(rng.randint(2 ** 30))
-        
+
         fan_in = np.prod(filter_shape[1:])
         fan_out = filter_shape[0] * np.prod(filter_shape[2:])
-        
+
         W_bound = np.sqrt(6. / (fan_in + fan_out))
         W = np.asarray(
                 rng.uniform(low=-W_bound, high=W_bound, size=filter_shape),
                 dtype=theano.config.floatX)
-        
+
         self.W = theano.shared(name='W', value=W, borrow=True)
         self.params = [self.W]
-    
+
     def cost(self, input, gamma=0.01):
         return gamma * T.mean(abs(self.W))
-    
+
     def __call__(self, input):
         s, f = self.input_shape, self.filter_shape
         zeros = T.basic.zeros((s[0], s[1], (f[2]-1)//2), dtype=theano.config.floatX)

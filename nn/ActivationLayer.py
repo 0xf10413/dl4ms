@@ -7,7 +7,7 @@ from Layer import Layer
 class ActivationLayer(Layer):
 
     def __init__(self, f='ReLU', params=[]):
-        
+
         if   f == 'ReLU':
             self.f = lambda x: T.switch(x<0,0,x)
         elif f == 'LReLU':
@@ -24,8 +24,8 @@ class ActivationLayer(Layer):
             self.f = lambda x: x
         else:
             self.f = f
-        
+
         self.params = params
-        
+
     def __call__(self, input): return self.f(input)
-        
+
