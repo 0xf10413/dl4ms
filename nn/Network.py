@@ -2,6 +2,8 @@ import os
 import numpy as np
 import theano
 import theano.tensor as T
+import theano.d3viz as d3v
+from theano.printing import pydotprint
 
 from Layer import Layer
 
@@ -36,4 +38,16 @@ class Network(Layer):
     def load(self, database, prefix=''):
         for li, layer in enumerate(self.layers):
             layer.load(database, '%sL%03i_' % (prefix, li))
+
+    def getopgraph(self, input):
+        opgraph = None
+        for layer in self.layers:
+            if isinstance(layer, Network):
+                input = layer.getopgraph(input)
+            else:
+              next_input = layer(input)
+              opgraph = theano.OpFromGraph([input], [next_input],
+                  name=type(layer).__name__)
+              input = opgraph(input)
+        return input
 
