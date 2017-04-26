@@ -197,7 +197,7 @@ def process_file(filename, window=240, window_step=120):
         25, 26, 27, 29])]
 
     """ Put on Floor """
-    fid_l, fid_r = np.array([4,5]), np.array([8,9])
+    fid_l, fid_r = np.array([4,5]), np.array([8,9]) # feet id left, feet id right
     foot_heights = np.minimum(positions[:,fid_l,1], positions[:,fid_r,1]).min(axis=1)
     floor_height = softmin(foot_heights, softness=0.5, axis=0)
 
@@ -264,7 +264,7 @@ def process_file(filename, window=240, window_step=120):
     windows = []
     windows_classes = []
 
-    for j in range(0, len(positions)-window//8, window_step):
+    for j in range(0, len(positions)-window//8, window_step): ## flo: pourquoi //8 ?
 
         """ If slice too small pad out by repeating start and end poses """
         slice = positions[j:j+window]
