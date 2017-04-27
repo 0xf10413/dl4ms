@@ -6,19 +6,42 @@
  */
 
 #include "mainwindow.h"
-#include <QPushButton>
+#include <QDebug>
+
 
 MainWindow::MainWindow(QWidget *parent) : QWidget(parent)
 {
+  m_glob_layout = new QVBoxLayout();
+
+  /* Définie avant le pyeditor */
+  m_outputScroll = new FOutputScroll("<Python output>\n");
+
+
+  /* Ajout de la première ligne : OpenGL + textedit */
   m_layout = new QHBoxLayout();
 
   m_displayWidget = new DisplayWidget(this);
   m_layout->addWidget(m_displayWidget);
 
-  m_textEdit = new QPlainTextEdit(this);
-  m_layout->addWidget(m_textEdit);
+  m_pyEdit = new FPyEditor(m_outputScroll);
+  m_layout->addWidget(m_pyEdit);
 
-  setLayout(m_layout);
-  resize(500,500);
+  m_glob_layout->addLayout(m_layout);
+
+
+  /* Ajout de la deuxième ligne : scrolltext */
+  m_glob_layout->addWidget(m_outputScroll);
+  m_glob_layout->setStretch(0,10);
+  m_glob_layout->setStretch(1,5);
+
+  m_push = new QPushButton("Push!");
+  m_glob_layout->addWidget(m_push);
+
+  connect(m_push, &QPushButton::clicked, [this]{
+      m_pyEdit->launchPython(m_pyEdit->toPlainText());
+      });
+
+  setLayout(m_glob_layout);
+  resize(800,500);
 }
 

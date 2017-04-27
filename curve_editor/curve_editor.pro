@@ -7,6 +7,7 @@ TARGET = curve_editor
 INCLUDEPATH += . /usr/include/python3.5m
 LIBS += -lpython3.5m -lboost_python-py35
 RESOURCES += rc/main.qrc
+CONFIG += no_keywords debug
 
 DESTDIR = build
 OBJECTS_DIR = $$DESTDIR
@@ -20,7 +21,8 @@ launch.depends = $$DESTDIR/$$TARGET
 QMAKE_EXTRA_TARGETS += launch
 
 # Input
-HEADERS += src/mainwindow.h src/display_widget.h src/vertex.hpp
-SOURCES += src/main.cpp src/mainwindow.cpp src/python_executor.cpp \
-           src/display_widget.cpp
+HEADERS += src/mainwindow.h src/display_widget.h src/vertex.hpp \
+            src/fpyeditor.h src/foutput_scroll.h
+SOURCES += src/main.cpp src/mainwindow.cpp src/fpyeditor.cpp \
+           src/display_widget.cpp src/foutput_scroll.cpp
 QT += widgets gui

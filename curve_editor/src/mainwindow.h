@@ -11,19 +11,29 @@
 #include <QWidget>
 #include <QPlainTextEdit>
 #include <QHBoxLayout>
+#include <QVBoxLayout>
+#include <QPushButton>
 
 #include "display_widget.h"
+#include "fpyeditor.h"
+#include "foutput_scroll.h"
 
 class MainWindow : public QWidget
 {
   Q_OBJECT
 
 private:
+    QVBoxLayout *m_glob_layout;
     QHBoxLayout *m_layout;
-    QPlainTextEdit *m_textEdit;
+
+    FPyEditor *m_pyEdit;
     DisplayWidget *m_displayWidget;
+    FOutputScroll *m_outputScroll;
+    QPushButton *m_push;
 public:
     MainWindow(QWidget *parent = nullptr);
+    void paintEvent(QPaintEvent *)
+    {}
 };
 
 #endif /* !MAINWINDOW_H */
