@@ -5,7 +5,6 @@ import numpy as np
 import scipy.io as io
 import theano
 import theano.tensor as T
-import pickle
 
 def multiconstraint(*fs):
     return lambda H, V: (sum(map(lambda f: f(H, V), fs)) / len(fs))
@@ -66,7 +65,7 @@ def joint_lengths(
 
     return joint_lengths_constraint
 
-
+## flo: contient un c-c de nn/AdamTrainer
 def constrain(X, forward, backward, preprocess, constraint, alpha=0.1, iterations=100):
 
     H = theano.shared(np.array(forward(theano.shared((X - preprocess['Xmean']) / preprocess['Xstd'])).eval()))

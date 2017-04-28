@@ -26,7 +26,6 @@ class AdamTrainer:
 
     def get_cost_updates(self, network, input, output):
 
-        ## flo: y'a pas doublon dans les coûts ?
         cost = self.cost(network, input, output) + network.cost(input)
         #cost = self.cost(network, input, output)
 

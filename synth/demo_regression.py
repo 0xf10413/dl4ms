@@ -4,11 +4,11 @@ import time
 import pickle
 import numpy as np
 
-print("→ Now loading theano…")
+print("-> Now loading theano...")
 import_theano_begin = time.time()
 import theano
 import theano.tensor as T
-print("→ Theano loaded in", time.time()-import_theano_begin)
+print("-> Theano loaded in", time.time()-import_theano_begin)
 
 sys.path.append('../nn')
 
@@ -18,7 +18,7 @@ from constraints import constrain, foot_sliding, joint_lengths, trajectory, mult
 
 rng = np.random.RandomState(23455)
 
-print("→ Now loading edin_locomotion data…")
+print("-> Now loading edin_locomotion data...")
 loading_edin = time.time()
 data = np.load('../data/processed/data_edin_locomotion.npz')['clips']
 
@@ -34,7 +34,7 @@ X = np.swapaxes(X, 1, 2).astype(theano.config.floatX)
 preprocess = np.load('preprocess_core.npz')
 preprocess_footstepper = np.load('preprocess_footstepper.npz')
 X = (X - preprocess['Xmean']) / preprocess['Xstd']
-print("→ Done loading edin_locomotion in", time.time()-loading_edin)
+print("-> Done loading edin_locomotion in", time.time()-loading_edin)
 
 batchsize = 1
 
@@ -56,19 +56,19 @@ for index, length in indices:
 
     input = theano.tensor.ftensor3()
 
-    print("→ Loading curves…")
+    print("-> Loading curves...")
     loading_curves = time.time()
     Torig = np.load('../data/curves.npz')['C'][:,:,index:index+length]
     curve = Torig
     Torig = (Torig - preprocess['Xmean'][:,-7:-4]) / preprocess['Xstd'][:,-7:-4]
-    print("→ Done loading curves in ", time.time()-loading_curves)
+    print("-> Done loading curves in ", time.time()-loading_curves)
 
-    print("→ Re-creating footstepper…")
+    print("-> Re-creating footstepper...")
     recreating_footstepper = time.time()
     network_footstepper = create_footstepper(batchsize=batchsize, window=Torig.shape[2], dropout=0.0)
     network_footstepper.load(np.load('network_footstepper.npz'))
     network_footstepper_func = theano.function([input], network_footstepper(input), allow_input_downcast=True)
-    print("→ Done re-creating footstepper in", time.time()-recreating_footstepper)
+    print("-> Done re-creating footstepper in", time.time()-recreating_footstepper)
 
     start = time.clock()
     W = network_footstepper_func(Torig[:,:3])
@@ -101,22 +101,23 @@ for index, length in indices:
         (np.sin(np.cumsum(alpha*W[:,0:1],axis=2)+off_rh)>np.clip(np.cos(W[:,3:4])+beta, maxstep, minstep)).astype(theano.config.floatX)*2-1,
         (np.sin(np.cumsum(alpha*W[:,0:1],axis=2)+off_rt)>np.clip(np.cos(W[:,4:5])+beta, maxstep, minstep)).astype(theano.config.floatX)*2-1], axis=1))
 
-    print('→ Footsteps: %0.4f' % (time.clock() - start))
+    print('-> Footsteps: %0.4f' % (time.clock() - start))
 
     #############
-    print("→ Re-creating network…")
+    print("-> Re-creating network...")
     recreating_network = time.time()
+	## flo: dans l'ordre, regressor, autoencodeur, regressor -> decoder
     network_first, network_second, network = create_network(Torig.shape[2], Torig.shape[1])
     network_func = theano.function([input], network(input), allow_input_downcast=True)
-    print("→ Done recreating network in ", time.time()-recreating_network)
+    print("-> Done recreating network in ", time.time()-recreating_network)
 
     start = time.clock()
     Xrecn = network_func(Torig)
     Xrecn = (Xrecn * preprocess['Xstd']) + preprocess['Xmean']
     Xtraj = ((Torig * preprocess['Xstd'][:,-7:]) + preprocess['Xmean'][:,-7:]).copy()
-    print('→ Synthesis: %0.4f' % (time.clock() - start))
+    print('-> Synthesis: %0.4f' % (time.clock() - start))
 
-    print("→ Now starting constrains…")
+    print("-> Now starting constrains...")
     start_constrains = time.time()
     Xnonc = Xrecn.copy()
     Xrecn = constrain(Xrecn, network_second[0], network_second[1], preprocess, multiconstraint(
@@ -124,7 +125,7 @@ for index, length in indices:
         trajectory(Xtraj[:,:3]),
         joint_lengths()), alpha=0.01, iterations=250)
     Xrecn[:,-7:] = Xtraj
-    print("→ Done constraining in", time.time()-start_constrains)
+    print("-> Done constraining in", time.time()-start_constrains)
 
     print("NOT saving !")
     print("Xrecn has shape", Xrecn.shape)

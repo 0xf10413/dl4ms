@@ -298,7 +298,7 @@ def get_files(directory):
     return [os.path.join(directory,f) for f in sorted(list(os.listdir(directory)))
     if os.path.isfile(os.path.join(directory,f))
     and f.endswith('.bvh') and f != 'rest.bvh']
-
+"""
 cmu_files = get_files('cmu')
 cmu_clips = []
 for i, item in enumerate(cmu_files):
@@ -307,7 +307,7 @@ for i, item in enumerate(cmu_files):
     cmu_clips += clips
 data_clips = np.array(cmu_clips)
 np.savez_compressed('data_cmu', clips=data_clips)
-
+"""
 hdm05_files = get_files('hdm05')
 hdm05_clips = []
 hdm05_classes = []
