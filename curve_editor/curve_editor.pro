@@ -4,8 +4,20 @@
 
 TEMPLATE = app
 TARGET = curve_editor
-INCLUDEPATH += . /usr/include/python3.5m
-LIBS += -lpython3.5m -lboost_python-py35
+
+linux-g++ {
+    INCLUDEPATH += . /usr/include/python3.5m
+    LIBS += -lpython3.5m -lboost_python-py35
+}
+
+win32 {
+    message(Building on windows)
+    INCLUDEPATH += . C:\local\boost_1_64_0 C:\Users\p1619885\AppData\Local\Continuum\Miniconda3.4\include
+    LIBPATH += C:\Users\p1619885\AppData\Local\Continuum\Miniconda3.4\libs \
+               C:\local\boost_1_64_0\lib64-msvc-14.0
+    #LIBS += -lpython35 -lboost_python-py35
+}
+
 RESOURCES += rc/main.qrc
 CONFIG += no_keywords debug c++11
 

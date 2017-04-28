@@ -107,7 +107,7 @@ void DisplayWidget::initializeGL()
 DisplayWidget::DisplayWidget(QWidget *parent) : QOpenGLWidget(parent)
 {
 
-	m_transform.translate(.0, .0, -5.);
+	m_transform.translate(.0, .0, -5.0f);
 	QSurfaceFormat format;
 	format.setDepthBufferSize(24);
 	format.setStencilBufferSize(8);
@@ -152,7 +152,26 @@ void DisplayWidget::resizeGL(int width, int height)
 
 void DisplayWidget::printVersionInformation()
 {
-	qDebug() << "Warning : printVersionInformation not implemented";
+	QString glType;
+	QString glVersion;
+	QString glProfile;
+
+	// Get Version Information
+	glType = (context()->isOpenGLES()) ? "OpenGL ES" : "OpenGL";
+	glVersion = reinterpret_cast<const char*>(glGetString(GL_VERSION));
+
+	// Get Profile Information
+#define CASE(c) case QSurfaceFormat::c: glProfile = #c; break
+	switch (format().profile())
+	{
+		CASE(NoProfile);
+		CASE(CoreProfile);
+		CASE(CompatibilityProfile);
+	}
+#undef CASE
+
+	// qPrintable() will print our QString w/o quotes around it.
+	qDebug() << qPrintable(glType) << qPrintable(glVersion) << "(" << qPrintable(glProfile) << ")";
 }
 
 void DisplayWidget::update()
@@ -161,9 +180,10 @@ void DisplayWidget::update()
 	Input::update();
 
 	// Camera Transformation
-	if (Input::buttonPressed(Qt::RightButton))
+	if (Input::buttonPressed(Qt::LeftButton))
 	{
-		static const float transSpeed = 0.5f;
+		setFocus();
+		static const float transSpeed = 0.05f;
 		static const float rotSpeed   = 0.5f;
 
 		// Handle rotations
@@ -172,7 +192,7 @@ void DisplayWidget::update()
 
 		// Handle translations
 		QVector3D translation;
-		if (Input::keyPressed(Qt::Key_W))
+		if (Input::keyPressed(Qt::Key_Z))
 		{
 			translation += m_camera.forward();
 		}
@@ -180,7 +200,7 @@ void DisplayWidget::update()
 		{
 			translation -= m_camera.forward();
 		}
-		if (Input::keyPressed(Qt::Key_A))
+		if (Input::keyPressed(Qt::Key_Q))
 		{
 			translation -= m_camera.right();
 		}
@@ -189,7 +209,7 @@ void DisplayWidget::update()
 			translation += m_camera.right();
 		}
 
-		if (Input::keyPressed(Qt::Key_Q))
+		if (Input::keyPressed(Qt::Key_A))
 		{
 			translation -= m_camera.up();
 		}
