@@ -5,7 +5,7 @@
 TEMPLATE = app
 TARGET = curve_editor
 
-linux-g++ {
+unix {
     INCLUDEPATH += . /usr/include/python3.5m
     LIBS += -lpython3.5m -lboost_python-py35
 }

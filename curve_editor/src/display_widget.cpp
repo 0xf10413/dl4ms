@@ -14,38 +14,18 @@
 #include "input.h"
 
 // Front Verticies
-#define VERTEX_FTR Vertex( QVector3D( 0.5f,  0.5f,  0.5f), QVector3D( 1.0f, 0.0f, 0.0f ) )
-#define VERTEX_FTL Vertex( QVector3D(-0.5f,  0.5f,  0.5f), QVector3D( 0.0f, 1.0f, 0.0f ) )
-#define VERTEX_FBL Vertex( QVector3D(-0.5f, -0.5f,  0.5f), QVector3D( 0.0f, 0.0f, 1.0f ) )
-#define VERTEX_FBR Vertex( QVector3D( 0.5f, -0.5f,  0.5f), QVector3D( 0.0f, 0.0f, 0.0f ) )
+#define VERTEX_FIRST Vertex( QVector3D( 0.f,  1.0f,  0.f), QVector3D( 1.0f, 0.0f, 0.0f ) )
+#define VERTEX_SECOND Vertex( QVector3D( 0.5f,  0.f,  0.f), QVector3D( .0f, 1.0f, 0.0f ) )
+#define VERTEX_THIRD Vertex( QVector3D( 0.f,  0.f,  -0.5f), QVector3D( 0.0f, 0.0f, 1.0f ) )
+#define VERTEX_FOURTH Vertex( QVector3D( 0.f,  0.f, 0.5f), QVector3D( 1.0f, 1.0f, 0.0f ) )
 
-// Back Verticies
-#define VERTEX_BTR Vertex( QVector3D( 0.5f,  0.5f, -0.5f), QVector3D( 1.0f, 1.0f, 0.0f ) )
-#define VERTEX_BTL Vertex( QVector3D(-0.5f,  0.5f, -0.5f), QVector3D( 0.0f, 1.0f, 1.0f ) )
-#define VERTEX_BBL Vertex( QVector3D(-0.5f, -0.5f, -0.5f), QVector3D( 1.0f, 0.0f, 1.0f ) )
-#define VERTEX_BBR Vertex( QVector3D( 0.5f, -0.5f, -0.5f), QVector3D( 1.0f, 1.0f, 1.0f ) )
-
-// Create a colored cube
+// Create a colored pyramide
 
 static const Vertex sg_vertexes[] = {
-	// Face 1 (Front)
-	VERTEX_FTR, VERTEX_FTL, VERTEX_FBL,
-	VERTEX_FBL, VERTEX_FBR, VERTEX_FTR,
-	// Face 2 (Back)
-	VERTEX_BBR, VERTEX_BTL, VERTEX_BTR,
-	VERTEX_BTL, VERTEX_BBR, VERTEX_BBL,
-	// Face 3 (Top)
-	VERTEX_FTR, VERTEX_BTR, VERTEX_BTL,
-	VERTEX_BTL, VERTEX_FTL, VERTEX_FTR,
-	// Face 4 (Bottom)
-	VERTEX_FBR, VERTEX_FBL, VERTEX_BBL,
-	VERTEX_BBL, VERTEX_BBR, VERTEX_FBR,
-	// Face 5 (Left)
-	VERTEX_FBL, VERTEX_FTL, VERTEX_BTL,
-	VERTEX_FBL, VERTEX_BTL, VERTEX_BBL,
-	// Face 6 (Right)
-	VERTEX_FTR, VERTEX_FBR, VERTEX_BBR,
-	VERTEX_BBR, VERTEX_BTR, VERTEX_FTR
+  VERTEX_FIRST, VERTEX_SECOND, VERTEX_THIRD,
+  VERTEX_FIRST, VERTEX_THIRD, VERTEX_FOURTH,
+  VERTEX_FIRST, VERTEX_FOURTH, VERTEX_SECOND,
+  VERTEX_SECOND, VERTEX_THIRD, VERTEX_FOURTH,
 };
 
 #undef VERTEX_BBR
@@ -106,14 +86,12 @@ void DisplayWidget::initializeGL()
 
 DisplayWidget::DisplayWidget(QWidget *parent) : QOpenGLWidget(parent)
 {
-
 	m_transform.translate(.0, .0, -5.0f);
 	QSurfaceFormat format;
 	format.setDepthBufferSize(24);
 	format.setStencilBufferSize(8);
 	setFormat(format);
 
-	resize(500,500);
 	setMinimumSize(QSize(400,200));
 }
 
@@ -183,7 +161,7 @@ void DisplayWidget::update()
 	if (Input::buttonPressed(Qt::LeftButton))
 	{
 		setFocus();
-		static const float transSpeed = 0.05f;
+		static const float transSpeed = 0.5f;
 		static const float rotSpeed   = 0.5f;
 
 		// Handle rotations

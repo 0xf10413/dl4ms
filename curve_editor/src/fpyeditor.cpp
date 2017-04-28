@@ -1,8 +1,11 @@
 #include "fpyeditor.h"
+#include <boost/python.hpp>
 #include <QDebug>
 
 #include <sstream>
 #include <tuple>
+
+#include "input.h"
 
 using namespace boost::python;
 using namespace std;
@@ -37,10 +40,19 @@ std::string FPyEditor::handle_pyerror()
     return extract<std::string>(formatted);
 }
 
+void FPyEditor::keyPressEvent(QKeyEvent *e)
+{
+  if ((Qt::Key(e->key()) == Qt::Key_Return) &&
+    (e->modifiers() & Qt::ControlModifier))
+    launchPython(toPlainText());
+  else
+    QPlainTextEdit::keyPressEvent(e);
+}
+
 void FPyEditor::launchPython(const QString &code)
 {
   /* Setup de la capture de l'output */
-  const std::string capture_output =
+  const char *capture_output =
   "import sys\n"
   "class CatchOutErr:\n"
   "    def __init__(self):\n"
@@ -55,7 +67,7 @@ void FPyEditor::launchPython(const QString &code)
 
   try
   {
-    exec(capture_output.c_str(), m_main_ns);
+    exec(capture_output, m_main_ns);
     exec(code.toStdString().c_str(), m_main_ns);
     string output = extract<string>(str(m_main_ns["catchOutErr"]));
     if (output.empty())
@@ -70,14 +82,14 @@ void FPyEditor::launchPython(const QString &code)
       if (PyErr_Occurred())
         m_output->addLine(QString::fromStdString(handle_pyerror()));
       else
-        m_output->addLine("? There was some exception of some kind");
+        m_output->addLine("? There was some error of some kind");
       handle_exception();
       PyErr_Clear();
     }
     catch (boost::python::error_already_set &)
     {
       m_output->addLine("I'm so sorry,"
-          "I couldn't even get the error.");
+          "I couldn't even fetch the error.");
     }
   }
 }

@@ -10,7 +10,7 @@
 
 #include <QPlainTextEdit>
 #include <QLabel>
-#include <boost/python.hpp>
+#include <boost/python/object.hpp>
 #include "foutput_scroll.h"
 
 class FPyEditor : public QPlainTextEdit
@@ -19,10 +19,11 @@ class FPyEditor : public QPlainTextEdit
 private:
   FOutputScroll *m_output;
   boost::python::object m_main_module, m_main_ns;
-  std::string handle_pyerror(); // tiré de SO
+  std::string handle_pyerror();
 public:
   FPyEditor(FOutputScroll *output, QWidget *parent = nullptr);
   void launchPython(const QString &);
+  void keyPressEvent(QKeyEvent *e);
 };
 
 #endif /* !F_PYEDITOR_H */

@@ -34,14 +34,8 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent)
   m_glob_layout->setStretch(0,10);
   m_glob_layout->setStretch(1,5);
 
-  m_push = new QPushButton("Push!");
-  m_glob_layout->addWidget(m_push);
-
-  connect(m_push, &QPushButton::clicked, [this]{
-      m_pyEdit->launchPython(m_pyEdit->toPlainText());
-      });
-
   setLayout(m_glob_layout);
   resize(800,500);
+  m_pyEdit->setFocus();
 }
 

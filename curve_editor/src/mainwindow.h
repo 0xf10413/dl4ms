@@ -12,7 +12,6 @@
 #include <QPlainTextEdit>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
-#include <QPushButton>
 
 #include "display_widget.h"
 #include "fpyeditor.h"
@@ -29,7 +28,6 @@ private:
     FPyEditor *m_pyEdit;
     DisplayWidget *m_displayWidget;
     FOutputScroll *m_outputScroll;
-    QPushButton *m_push;
 public:
     MainWindow(QWidget *parent = nullptr);
     void paintEvent(QPaintEvent *)
