@@ -76,8 +76,8 @@ void FPyEditor::launchPython(const QString &code)
     }
     catch (boost::python::error_already_set &)
     {
-      m_output->addLine("I'm really sorry,"
-          "i couldn't even get the error.");
+      m_output->addLine("I'm so sorry,"
+          "I couldn't even get the error.");
     }
   }
 }

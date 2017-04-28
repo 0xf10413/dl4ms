@@ -12,6 +12,10 @@
 #include <QOpenGLFunctions>
 #include <QOpenGLBuffer>
 #include <QOpenGLVertexArrayObject>
+#include <QMatrix4x4>
+
+#include "transform3d.h"
+#include "camera3d.h"
 
 class QOpenGLShaderProgram;
 
@@ -28,10 +32,27 @@ private:
   // Private Helpers
   void printVersionInformation();
 
+  // Shader Information
+  int u_modelToWorld;
+  int u_worldToCamera;
+  int u_cameraToView;
+  QMatrix4x4 m_projection;
+	Camera3D m_camera;
+  Transform3D m_transform;
+
+protected Q_SLOTS:
+  void update();
+
+protected:
+	void keyPressEvent(QKeyEvent *ev);
+	void keyReleaseEvent(QKeyEvent *ev);
+	void mousePressEvent(QMouseEvent *ev);
+	void mouseReleaseEvent(QMouseEvent *ev);
+
 public:
   DisplayWidget(QWidget *parent = nullptr);
   void initializeGL();
-  //void resizeGL(int width, int height);
+  void resizeGL(int width, int height);
   void paintGL();
   void teardownGL();
 } ;
