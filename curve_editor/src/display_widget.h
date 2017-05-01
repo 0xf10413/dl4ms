@@ -14,6 +14,8 @@
 #include <QOpenGLVertexArrayObject>
 #include <QMatrix4x4>
 
+#include <numpy/arrayobject.h>
+
 #include "transform3d.h"
 #include "camera3d.h"
 
@@ -42,6 +44,8 @@ private:
 
 protected Q_SLOTS:
   void update();
+public Q_SLOTS:
+  void refreshDataToPrint(PyArrayObject *); // Réévalue les données d'espace
 
 protected:
 	void keyPressEvent(QKeyEvent *ev);
@@ -51,6 +55,7 @@ protected:
 
 public:
   DisplayWidget(QWidget *parent = nullptr);
+  ~DisplayWidget();
   void initializeGL();
   void resizeGL(int width, int height);
   void paintGL();

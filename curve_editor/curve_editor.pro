@@ -20,6 +20,7 @@ win32 {
 
 RESOURCES += rc/main.qrc
 CONFIG += no_keywords debug c++11
+DEFINES += NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION
 
 DESTDIR = build
 OBJECTS_DIR = $$DESTDIR
@@ -30,7 +31,10 @@ UI_DIR = $$DESTDIR
 launch.target =
 launch.commands = $$DESTDIR/$$TARGET
 launch.depends = $$DESTDIR/$$TARGET
-QMAKE_EXTRA_TARGETS += launch
+debug.target =
+debug.commands = gdb -quiet $$DESTDIR/$$TARGET
+debug.depends = $$DESTDIR/$$TARGET
+QMAKE_EXTRA_TARGETS += launch debug
 
 # Input
 HEADERS += src/mainwindow.h src/display_widget.h src/vertex.hpp \

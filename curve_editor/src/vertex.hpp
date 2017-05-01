@@ -37,7 +37,7 @@ private:
 Q_DECLARE_TYPEINFO(Vertex, Q_MOVABLE_TYPE);
 
 // Constructors
-Q_DECL_CONSTEXPR inline Vertex::Vertex() {}
+Q_DECL_CONSTEXPR inline Vertex::Vertex() : m_position(), m_color(1,1,1) {}
 Q_DECL_CONSTEXPR inline Vertex::Vertex(const QVector3D &position) : m_position(position) {}
 Q_DECL_CONSTEXPR inline Vertex::Vertex(const QVector3D &position, const QVector3D &color) : m_position(position), m_color(color) {}
 

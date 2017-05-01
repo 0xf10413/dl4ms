@@ -34,6 +34,10 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent)
   m_glob_layout->setStretch(0,10);
   m_glob_layout->setStretch(1,5);
 
+  /* Liens divers */
+  connect(m_pyEdit, &FPyEditor::dataMayHaveChanged,
+      m_displayWidget, &DisplayWidget::refreshDataToPrint);
+
   setLayout(m_glob_layout);
   resize(800,500);
   m_pyEdit->setFocus();

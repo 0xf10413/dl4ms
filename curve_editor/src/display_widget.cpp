@@ -6,37 +6,20 @@
  */
 
 #include "display_widget.h"
+#include "vertex.hpp"
+#include "input.h"
+
 #include <QDebug>
 #include <QString>
 #include <QKeyEvent>
 #include <QOpenGLShaderProgram>
-#include "vertex.hpp"
-#include "input.h"
 
-// Front Verticies
-#define VERTEX_FIRST Vertex( QVector3D( 0.f,  1.0f,  0.f), QVector3D( 1.0f, 0.0f, 0.0f ) )
-#define VERTEX_SECOND Vertex( QVector3D( 0.5f,  0.f,  0.f), QVector3D( .0f, 1.0f, 0.0f ) )
-#define VERTEX_THIRD Vertex( QVector3D( 0.f,  0.f,  -0.5f), QVector3D( 0.0f, 0.0f, 1.0f ) )
-#define VERTEX_FOURTH Vertex( QVector3D( 0.f,  0.f, 0.5f), QVector3D( 1.0f, 1.0f, 0.0f ) )
+#include <numpy/arrayobject.h>
 
-// Create a colored pyramide
+#include <array>
+#include <random>
 
-static const Vertex sg_vertexes[] = {
-  VERTEX_FIRST, VERTEX_SECOND, VERTEX_THIRD,
-  VERTEX_FIRST, VERTEX_THIRD, VERTEX_FOURTH,
-  VERTEX_FIRST, VERTEX_FOURTH, VERTEX_SECOND,
-  VERTEX_SECOND, VERTEX_THIRD, VERTEX_FOURTH,
-};
-
-#undef VERTEX_BBR
-#undef VERTEX_BBL
-#undef VERTEX_BTL
-#undef VERTEX_BTR
-
-#undef VERTEX_FBR
-#undef VERTEX_FBL
-#undef VERTEX_FTL
-#undef VERTEX_FTR
+static std::array<Vertex,600> sg_vertexes { };
 
 void DisplayWidget::initializeGL()
 {
@@ -66,8 +49,8 @@ void DisplayWidget::initializeGL()
 		// Create Buffer (Do not release until VAO is created)
 		m_vertex.create();
 		m_vertex.bind();
-		m_vertex.setUsagePattern(QOpenGLBuffer::StaticDraw);
-		m_vertex.allocate(sg_vertexes, sizeof(sg_vertexes));
+		m_vertex.setUsagePattern(QOpenGLBuffer::DynamicDraw);
+		m_vertex.allocate(sg_vertexes.data(), sg_vertexes.size());
 
 		// Create Vertex Array Object
 		m_object.create();
@@ -93,6 +76,23 @@ DisplayWidget::DisplayWidget(QWidget *parent) : QOpenGLWidget(parent)
 	setFormat(format);
 
 	setMinimumSize(QSize(400,200));
+  sg_vertexes[0] = Vertex(QVector3D{1,1,1}, QVector3D{1,0,0} );
+  sg_vertexes[1] = Vertex(QVector3D{1,0,0}, QVector3D{0,1,0} );
+  sg_vertexes[2] = Vertex(QVector3D{1,0,0}, QVector3D{0,1,0} );
+  sg_vertexes[3] = Vertex(QVector3D{0,1,0}, QVector3D{0,0,1} );
+  sg_vertexes[4] = Vertex(QVector3D{0,0,1}, QVector3D{1,0,1} );
+
+  std::uniform_real_distribution<float> unif(0,1);
+  std::mt19937 mersenne(41);
+
+  /* Random colors */
+  for (auto &vertex : sg_vertexes)
+    vertex.setColor({unif(mersenne), unif(mersenne), unif(mersenne)});
+}
+
+DisplayWidget::~DisplayWidget()
+{
+  teardownGL();
 }
 
 void DisplayWidget::paintGL()
@@ -107,8 +107,7 @@ void DisplayWidget::paintGL()
 	{
 		m_object.bind();
 		m_program->setUniformValue(u_modelToWorld, m_transform.toMatrix());
-		glDrawArrays(GL_TRIANGLES, 0,
-				sizeof(sg_vertexes) / sizeof(sg_vertexes[0]));
+		glDrawArrays(GL_LINES, 0, sg_vertexes.size());
 		m_object.release();
 	}
 	m_program->release();
@@ -161,7 +160,7 @@ void DisplayWidget::update()
 	if (Input::buttonPressed(Qt::LeftButton))
 	{
 		setFocus();
-		static const float transSpeed = 0.5f;
+		static const float transSpeed = 0.1f;
 		static const float rotSpeed   = 0.5f;
 
 		// Handle rotations
@@ -171,30 +170,23 @@ void DisplayWidget::update()
 		// Handle translations
 		QVector3D translation;
 		if (Input::keyPressed(Qt::Key_Z))
-		{
 			translation += m_camera.forward();
-		}
+
 		if (Input::keyPressed(Qt::Key_S))
-		{
 			translation -= m_camera.forward();
-		}
+
 		if (Input::keyPressed(Qt::Key_Q))
-		{
 			translation -= m_camera.right();
-		}
+
 		if (Input::keyPressed(Qt::Key_D))
-		{
 			translation += m_camera.right();
-		}
 
 		if (Input::keyPressed(Qt::Key_A))
-		{
 			translation -= m_camera.up();
-		}
+
 		if (Input::keyPressed(Qt::Key_E))
-		{
 			translation += m_camera.up();
-		}
+
 		m_camera.translate(transSpeed * translation);
 	}
 
@@ -237,4 +229,40 @@ void DisplayWidget::mousePressEvent(QMouseEvent *event)
 void DisplayWidget::mouseReleaseEvent(QMouseEvent *event)
 {
 	Input::registerMouseRelease(event->button());
+}
+
+void DisplayWidget::refreshDataToPrint(PyArrayObject *ptr)
+{
+  qDebug() << __func__ << " called";
+  const int dims = PyArray_NDIM(ptr);
+  if (dims > 2)
+  {
+    qDebug() << "Error in " << __func__ << " : too many dimensions (" << dims << " > 2)";
+    return;
+  }
+
+  const long dimi = PyArray_DIM(ptr, 0), dimj = PyArray_DIM(ptr, 1);
+  if (dimj != 3)
+  {
+    qDebug() << "Error in " << __func__ << " : wrong 2nd dimension (" << dimj << " != 3)";
+    return;
+  }
+
+  if (dimi > 2*(signed long)sg_vertexes.size())
+  {
+    qDebug() << "Error in " << __func__ <<
+      " : not enough points allocated ( " << dimi << " > "
+      << sg_vertexes.size() << ")";
+  }
+
+  for (int i = 0, j = 0; i < dimi-1; ++i, j += 2)
+  {
+    double *linei = reinterpret_cast<double*>(PyArray_GETPTR1(ptr, i));
+    double *linej = reinterpret_cast<double*>(PyArray_GETPTR1(ptr, i+1));
+    sg_vertexes[j].setPosition({(float)linei[0], (float)linei[1], (float)linei[2]});
+    sg_vertexes[j+1].setPosition({(float)linej[0], (float)linej[1], (float)linej[2]});
+  }
+  m_vertex.bind();
+  m_vertex.write(0, sg_vertexes.data(), sg_vertexes.size());
+  m_vertex.release();
 }

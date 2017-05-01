@@ -1,5 +1,8 @@
 #include "fpyeditor.h"
 #include <boost/python.hpp>
+
+#include <numpy/arrayobject.h>
+
 #include <QDebug>
 
 #include <sstream>
@@ -17,6 +20,18 @@ FPyEditor::FPyEditor(FOutputScroll *output, QWidget *parent) :
   Py_Initialize();
   m_main_module = import("__main__");
   m_main_ns = m_main_module.attr("__dict__");
+
+  /* Quelques imports utilisés tout le long */
+  /* et des objets de base essentiels */
+  launchPython(
+      "import numpy as np\n"
+      "import theano\n"
+      "import theano.tensor as T\n"
+      "curve = np.random.randn(10,3)\n"
+      );
+
+  /* Sauvegarde du ns actuel pour repérer les nouveaux objets */
+  m_orig_ns = dict(m_main_ns);
 }
 
 /* Tiré de
@@ -74,6 +89,8 @@ void FPyEditor::launchPython(const QString &code)
       m_output->addLine("(ok)");
     else
       m_output->addLine(QString::fromStdString(output));
+    object curve_ = m_main_ns["curve"];
+    Q_EMIT dataMayHaveChanged(reinterpret_cast<PyArrayObject*>(curve_.ptr()));
   }
   catch (boost::python::error_already_set &)
   {
