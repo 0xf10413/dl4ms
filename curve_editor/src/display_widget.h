@@ -27,8 +27,8 @@ class DisplayWidget : public QOpenGLWidget,
   Q_OBJECT
 
 private:
-  QOpenGLBuffer m_vertex;
-  QOpenGLVertexArrayObject m_object;
+  QOpenGLBuffer m_curve_buf, m_skel_buf;
+  QOpenGLVertexArrayObject m_curve_obj, m_skel_obj;
   QOpenGLShaderProgram *m_program;
 
   // Private Helpers
@@ -45,7 +45,7 @@ private:
 protected Q_SLOTS:
   void update();
 public Q_SLOTS:
-  void refreshDataToPrint(PyArrayObject *); // Réévalue les données d'espace
+  void refreshDataToPrint(class FPyEditor &); // Réévalue les données d'espace
 
 protected:
 	void keyPressEvent(QKeyEvent *ev);

@@ -26,12 +26,14 @@ private:
 
 Q_SIGNALS:
   /* Indique un changement des données python en background */
-  void dataMayHaveChanged(PyArrayObject*);
+  void dataMayHaveChanged(FPyEditor &);
 
 public:
   FPyEditor(FOutputScroll *output, QWidget *parent = nullptr);
-  void launchPython(const QString &);
+  void launchPython(const QString &code, bool mute=false);
   void keyPressEvent(QKeyEvent *e);
+
+  friend class DisplayWidget;
 };
 
 #endif /* !F_PYEDITOR_H */

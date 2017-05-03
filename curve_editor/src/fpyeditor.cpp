@@ -22,13 +22,22 @@ FPyEditor::FPyEditor(FOutputScroll *output, QWidget *parent) :
   m_main_ns = m_main_module.attr("__dict__");
 
   /* Quelques imports utilisés tout le long */
-  /* et des objets de base essentiels */
   launchPython(
       "import numpy as np\n"
       "import theano\n"
       "import theano.tensor as T\n"
-      "curve = np.random.randn(10,3)\n"
-      );
+      ,true);
+
+  /* Des objets de base essentiels */
+  launchPython(
+      "curve = np.zeros((1000,3))\n"
+      "curve[:,0] = np.sin(np.linspace(0,4*np.pi,1000))\n"
+      "curve[:,1] = 0\n"
+      "curve[:,2] = np.linspace(0,4*np.pi,1000)\n"
+      "skel_parents = np.array("
+      "   [-1,0,1,2,3,4,1,6,7,8,1,10,11,12,12,14,15,16,12,18,19,20])\n"
+      "skel = np.random.randn(skel_parents.size,3)\n"
+      ,true);
 
   /* Sauvegarde du ns actuel pour repérer les nouveaux objets */
   m_orig_ns = dict(m_main_ns);
@@ -64,7 +73,7 @@ void FPyEditor::keyPressEvent(QKeyEvent *e)
     QPlainTextEdit::keyPressEvent(e);
 }
 
-void FPyEditor::launchPython(const QString &code)
+void FPyEditor::launchPython(const QString &code, bool mute)
 {
   /* Setup de la capture de l'output */
   const char *capture_output =
@@ -85,12 +94,15 @@ void FPyEditor::launchPython(const QString &code)
     exec(capture_output, m_main_ns);
     exec(code.toStdString().c_str(), m_main_ns);
     string output = extract<string>(str(m_main_ns["catchOutErr"]));
-    if (output.empty())
-      m_output->addLine("(ok)");
-    else
-      m_output->addLine(QString::fromStdString(output));
-    object curve_ = m_main_ns["curve"];
-    Q_EMIT dataMayHaveChanged(reinterpret_cast<PyArrayObject*>(curve_.ptr()));
+    if (!mute)
+    {
+      if (output.empty())
+        m_output->addLine("(ok)");
+      else
+        m_output->addLine(QString::fromStdString(output));
+      object curve_ = m_main_ns["curve"];
+      Q_EMIT dataMayHaveChanged(*this);
+    }
   }
   catch (boost::python::error_already_set &)
   {

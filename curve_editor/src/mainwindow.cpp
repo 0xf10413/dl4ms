@@ -39,7 +39,7 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent)
       m_displayWidget, &DisplayWidget::refreshDataToPrint);
 
   setLayout(m_glob_layout);
-  resize(800,500);
+  resize(800,700);
   m_pyEdit->setFocus();
 }
 

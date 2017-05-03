@@ -75,12 +75,12 @@ QVector3D Transform3D::forward() const
 {
   return m_rotation.rotatedVector(LocalForward);
 }
- 
+
 QVector3D Transform3D::up() const
 {
   return m_rotation.rotatedVector(LocalUp);
 }
- 
+
 QVector3D Transform3D::right() const
 {
   return m_rotation.rotatedVector(LocalRight);
