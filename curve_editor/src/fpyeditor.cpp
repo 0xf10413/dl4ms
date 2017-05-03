@@ -9,6 +9,7 @@
 #include <tuple>
 
 #include "input.h"
+#include "tools.h"
 
 using namespace boost::python;
 using namespace std;
@@ -27,14 +28,7 @@ FPyEditor::FPyEditor(FOutputScroll *output, QWidget *parent) :
   m_main_ns = m_main_module.attr("__dict__");
 
   /* Quelques imports utilisés tout le long */
-  QString python_code;
-  {
-    QFile file(":/python/base_objects.py");
-    file.open(QIODevice::ReadOnly | QIODevice::Text);
-    QTextStream in(&file);
-    while(!in.atEnd())
-      python_code += in.readLine() + "\n";
-  }
+  QString python_code = pythonFromRc(":/python/base_objects.py");
   launchPython(python_code, true);
 
   /* Sauvegarde du ns actuel pour repérer les nouveaux objets */

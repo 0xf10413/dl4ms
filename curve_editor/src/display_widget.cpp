@@ -209,10 +209,10 @@ void DisplayWidget::update()
     if (Input::keyPressed(Qt::Key_D))
       translation += m_camera.right();
 
-    if (Input::keyPressed(Qt::Key_E))
+    if (Input::keyPressed(Qt::Key_A))
       translation -= m_camera.up();
 
-    if (Input::keyPressed(Qt::Key_A))
+    if (Input::keyPressed(Qt::Key_E))
       translation += m_camera.up();
 
     m_camera.translate(transSpeed * translation);
@@ -292,14 +292,21 @@ void DisplayWidget::refreshDataToPrint(FPyEditor &e)
     curve_vertices[0].setPosition({0.f, 0.f, 0.f});
     curve_vertices[0].setColor({1, 1, 0});
     double *linex = reinterpret_cast<double*>(PyArray_GETPTR1(curve, 0));
-    double *linez = reinterpret_cast<double*>(PyArray_GETPTR1(curve, 1));
-    double *liney = reinterpret_cast<double*>(PyArray_GETPTR1(curve, 2));
+    double *liney = reinterpret_cast<double*>(PyArray_GETPTR1(curve, 1));
+    double *linez = reinterpret_cast<double*>(PyArray_GETPTR1(curve, 2));
+    float prev_theta = 0.;
     for (int j = 1; j < dimj; ++j)
     {
       float b = (float)j/dimj;
-      curve_vertices[j].setPosition({(float)(cur_pos[0] += linex[j]),
-          (float)(cur_pos[1] += liney[j]),
-          (float)(cur_pos[2] += linez[j])});
+      float vx = (float) linex[j];
+      float vy = (float) liney[j];
+
+      cur_pos[0] += cos(prev_theta)*vx - sin(prev_theta)*vy;
+      cur_pos[1] += sin(prev_theta)*vx + cos(prev_theta)*vy;
+      prev_theta += linez[j];
+      curve_vertices[j].setPosition({(float)cur_pos[0],
+          0.f, (float)cur_pos[1]
+          });
       curve_vertices[j].setColor({1, 1, b});
     }
     for (size_t j = dimj; j < curve_vertices.size(); ++j)
@@ -323,36 +330,41 @@ void DisplayWidget::refreshDataToPrint(FPyEditor &e)
     boost::python::object parents_ = e.m_main_ns["skel_parents"];
     PyArrayObject *parents = reinterpret_cast<PyArrayObject*>(parents_.ptr());
 
+    static long frame = 0;
+
     const int dims = PyArray_NDIM(skel);
-    if (dims > 2)
+    if (dims > 3)
     {
-      qDebug() << "Error in " << __func__ << " : too many dimensions (" << dims << " > 2)";
+      qDebug() << "Error in " << __func__ << " : too many dimensions (" << dims << " > 3)";
       return;
     }
 
-    const long dimi = PyArray_DIM(skel, 0), dimj = PyArray_DIM(skel, 1);
-    if (dimj != 3)
+    const long dimi = PyArray_DIM(skel, 0),
+          dimj = PyArray_DIM(skel, 1),
+          dimk = PyArray_DIM(skel, 2);
+
+    if (dimk != 3)
     {
-      qDebug() << "Error in " << __func__ << " : wrong 2nd dimension (" << dimj << " != 3)";
+      qDebug() << "Error in " << __func__ << " : wrong 3rd dimension (" << dimk << " != 3)";
       return;
     }
 
-    if (dimi > (signed long)skel_vertices.size())
+    if (dimj > 2*(signed long)skel_vertices.size())
     {
       qDebug() << "Error in " << __func__ <<
-        " : not enough points allocated ( " << dimi << " > "
+        " : not enough points allocated ( " << dimj << " > "
         << skel_vertices.size() << ")";
       return;
     }
 
     /* Premier joint = racine, on skip */
     /* i indice de joint du squelette, j indice opengl */
-    for (int i = 1, j = 0; i < dimi; ++i, j += 2)
+    for (int i = 1, j = 0; i < dimj; ++i, j += 2)
     {
-      float r = (float)i/dimi;
+      float r = (float)i/dimj;
       int parent = *((int*) PyArray_GETPTR1(parents, i));
-      double *linei = reinterpret_cast<double*>(PyArray_GETPTR1(skel, i));
-      double *linep = reinterpret_cast<double*>(PyArray_GETPTR1(skel, parent));
+      double *linei = reinterpret_cast<double*>(PyArray_GETPTR2(skel, frame, i));
+      double *linep = reinterpret_cast<double*>(PyArray_GETPTR2(skel, frame, parent));
       skel_vertices[j].setPosition({(float)linei[0], (float)linei[1], (float)linei[2]});
       skel_vertices[j].setColor({r, 1, 1});
       skel_vertices[j+1].setPosition({(float)linep[0], (float)linep[1], (float)linep[2]});
@@ -362,5 +374,8 @@ void DisplayWidget::refreshDataToPrint(FPyEditor &e)
     m_skel_buf.bind();
     m_skel_buf.write(0, skel_vertices.data(), skel_vertices.size()*sizeof(Vertex));
     m_skel_buf.release();
+    frame += 10;
+    if (frame > dimi)
+      frame = 0;
   }
 }

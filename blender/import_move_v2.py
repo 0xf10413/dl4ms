@@ -67,7 +67,7 @@ if ob is None:
     scn.objects.link(ob)
     scn.objects.active = ob
     ob.select = True
-    mesh.from_pydata([(0,0,0)]*(22*4), 
+    mesh.from_pydata([(0,0,0)]*(22*4),
      [(4*i,4*i+1) for i in range(22)],
      [(4*i, 4*i+1, 4*i+3, 4*i+2) for i in range(22)])
     mesh.update()
