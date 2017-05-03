@@ -20,7 +20,7 @@
 #include <array>
 #include <random>
 
-static std::array<Vertex,1000> curve_vertices { };
+static std::array<Vertex,7200> curve_vertices { };
 static std::array<Vertex,2*22> skel_vertices { };
 
 void DisplayWidget::initializeGL()
@@ -92,6 +92,7 @@ DisplayWidget::DisplayWidget(QWidget *parent) : QOpenGLWidget(parent)
   setFormat(format);
 
   setMinimumSize(QSize(400,400));
+  setMaximumSize(QSize(400,400));
   curve_vertices[0] = Vertex(QVector3D{1,1,1}, QVector3D{1,0,0} );
   curve_vertices[1] = Vertex(QVector3D{1,0,0}, QVector3D{0,1,0} );
   curve_vertices[2] = Vertex(QVector3D{1,0,0}, QVector3D{0,1,0} );
@@ -208,10 +209,10 @@ void DisplayWidget::update()
     if (Input::keyPressed(Qt::Key_D))
       translation += m_camera.right();
 
-    if (Input::keyPressed(Qt::Key_A))
+    if (Input::keyPressed(Qt::Key_E))
       translation -= m_camera.up();
 
-    if (Input::keyPressed(Qt::Key_E))
+    if (Input::keyPressed(Qt::Key_A))
       translation += m_camera.up();
 
     m_camera.translate(transSpeed * translation);
@@ -260,7 +261,8 @@ void DisplayWidget::mouseReleaseEvent(QMouseEvent *event)
 
 void DisplayWidget::refreshDataToPrint(FPyEditor &e)
 {
-  /* Tracé de la courbe */
+  /* Tracé de la courbe, attention, elle est discrétisée */
+  /* format : (frames * (dx,dy,d_omega) */
   {
     boost::python::object curve_ = e.m_main_ns["curve"];
     PyArrayObject *curve = reinterpret_cast<PyArrayObject*>(curve_.ptr());
@@ -272,27 +274,42 @@ void DisplayWidget::refreshDataToPrint(FPyEditor &e)
     }
 
     const long dimi = PyArray_DIM(curve, 0), dimj = PyArray_DIM(curve, 1);
-    if (dimj != 3)
+    if (dimi != 3)
     {
-      qDebug() << "Error in " << __func__ << " : wrong 2nd dimension (" << dimj << " != 3)";
+      qDebug() << "Error in " << __func__ << " : wrong 2nd dimension (" << dimi << " != 3)";
       return;
     }
 
-    if (dimi > (signed long)curve_vertices.size())
+    if (dimj > (signed long)curve_vertices.size())
     {
       qDebug() << "Error in " << __func__ <<
-        " : not enough points allocated ( " << dimi << " > "
+        " : not enough points allocated ( " << dimj << " > "
         << curve_vertices.size() << ")";
       return;
     }
 
-    for (int i = 0; i < dimi; ++i)
+    std::array<double,3> cur_pos {0.,0.,0.};
+    curve_vertices[0].setPosition({0.f, 0.f, 0.f});
+    curve_vertices[0].setColor({1, 1, 0});
+    double *linex = reinterpret_cast<double*>(PyArray_GETPTR1(curve, 0));
+    double *linez = reinterpret_cast<double*>(PyArray_GETPTR1(curve, 1));
+    double *liney = reinterpret_cast<double*>(PyArray_GETPTR1(curve, 2));
+    for (int j = 1; j < dimj; ++j)
     {
-      float b = (float)i/dimi;
-      double *linei = reinterpret_cast<double*>(PyArray_GETPTR1(curve, i));
-      curve_vertices[i].setPosition({(float)linei[0], (float)linei[1], (float)linei[2]});
-      curve_vertices[i].setColor({1, 1, b});
+      float b = (float)j/dimj;
+      curve_vertices[j].setPosition({(float)(cur_pos[0] += linex[j]),
+          (float)(cur_pos[1] += liney[j]),
+          (float)(cur_pos[2] += linez[j])});
+      curve_vertices[j].setColor({1, 1, b});
     }
+    for (size_t j = dimj; j < curve_vertices.size(); ++j)
+    {
+      curve_vertices[j].setPosition({(float)(cur_pos[0]),
+          (float)(cur_pos[1]),
+          (float)(cur_pos[2])});
+      curve_vertices[j].setColor({1, 1, 1});
+    }
+
     m_curve_buf.bind();
     m_curve_buf.write(0, curve_vertices.data(), curve_vertices.size()*sizeof(Vertex));
     m_curve_buf.release();

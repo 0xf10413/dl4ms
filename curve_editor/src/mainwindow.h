@@ -10,7 +10,9 @@
 
 #include <QWidget>
 #include <QPlainTextEdit>
+#include <QPushButton>
 #include <QHBoxLayout>
+#include <QGroupBox>
 #include <QVBoxLayout>
 
 #include "display_widget.h"
@@ -22,8 +24,11 @@ class MainWindow : public QWidget
   Q_OBJECT
 
 private:
-    QVBoxLayout *m_glob_layout;
-    QHBoxLayout *m_layout;
+    QHBoxLayout *m_glob_layout;
+    QGroupBox *m_groupActions;
+
+    QPushButton *m_launchLoadFootstepper;
+    QPushButton *m_launchLoadNetwork;
 
     FPyEditor *m_pyEdit;
     DisplayWidget *m_displayWidget;

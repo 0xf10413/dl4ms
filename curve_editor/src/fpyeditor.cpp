@@ -17,27 +17,25 @@ FPyEditor::FPyEditor(FOutputScroll *output, QWidget *parent) :
   QPlainTextEdit(parent),
   m_output(output)
 {
+  setPlainText("# Code python, ctrl+entrée pour valider\n");
+  QTextCursor cursor = textCursor();
+  cursor.movePosition(QTextCursor::End);
+  setTextCursor(cursor);
+
   Py_Initialize();
   m_main_module = import("__main__");
   m_main_ns = m_main_module.attr("__dict__");
 
   /* Quelques imports utilisés tout le long */
-  launchPython(
-      "import numpy as np\n"
-      "import theano\n"
-      "import theano.tensor as T\n"
-      ,true);
-
-  /* Des objets de base essentiels */
-  launchPython(
-      "curve = np.zeros((1000,3))\n"
-      "curve[:,0] = np.sin(np.linspace(0,4*np.pi,1000))\n"
-      "curve[:,1] = 0\n"
-      "curve[:,2] = np.linspace(0,4*np.pi,1000)\n"
-      "skel_parents = np.array("
-      "   [-1,0,1,2,3,4,1,6,7,8,1,10,11,12,12,14,15,16,12,18,19,20])\n"
-      "skel = np.random.randn(skel_parents.size,3)\n"
-      ,true);
+  QString python_code;
+  {
+    QFile file(":/python/base_objects.py");
+    file.open(QIODevice::ReadOnly | QIODevice::Text);
+    QTextStream in(&file);
+    while(!in.atEnd())
+      python_code += in.readLine() + "\n";
+  }
+  launchPython(python_code, true);
 
   /* Sauvegarde du ns actuel pour repérer les nouveaux objets */
   m_orig_ns = dict(m_main_ns);
