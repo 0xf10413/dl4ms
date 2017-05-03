@@ -98,10 +98,6 @@ def constrain(X, forward, backward, preprocess, constraint, alpha=0.1, iteration
                [(self_t, self_t+1)])
 
     constraint_func = theano.function([], cost, updates=updates)
-    sys.setrecursionlimit(10000)
-    with open('constrain_func.pkl', 'wb') as f:
-        pickle.dump(constraint_func, f)
-    print("Pickled constrain function ! ")
     start = time.clock()
     for i in range(iterations):
        cost = constraint_func()

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import sys
 import time
-import pickle
 import numpy as np
 
 print("-> Now loading theano...")
@@ -20,20 +19,20 @@ rng = np.random.RandomState(23455)
 
 print("-> Now loading edin_locomotion data...")
 loading_edin = time.time()
-data = np.load('../data/processed/data_edin_locomotion.npz')['clips']
-
-I = np.arange(len(data))
-rng.shuffle(I)
-
-data_train = data[I[:len(data)//2]]
-data_valid = data[I[len(data)//2:]]
-
-X = data_valid
-X = np.swapaxes(X, 1, 2).astype(theano.config.floatX)
-
+#data = np.load('../data/processed/data_edin_locomotion.npz')['clips']
+#
+#I = np.arange(len(data))
+#rng.shuffle(I)
+#
+#data_train = data[I[:len(data)//2]]
+#data_valid = data[I[len(data)//2:]]
+#
+#X = data_valid
+#X = np.swapaxes(X, 1, 2).astype(theano.config.floatX)
+#
 preprocess = np.load('preprocess_core.npz')
 preprocess_footstepper = np.load('preprocess_footstepper.npz')
-X = (X - preprocess['Xmean']) / preprocess['Xstd']
+#X = (X - preprocess['Xmean']) / preprocess['Xstd']
 print("-> Done loading edin_locomotion in", time.time()-loading_edin)
 
 batchsize = 1
@@ -48,9 +47,9 @@ def create_network(window, input):
 
 from AnimationPlot import animation_plot
 
-print(X.shape)
+#print(X.shape)
 
-indices = [(30, 15*480), (60, 15*480), (90, 15*480)]
+indices = [(30, 15*480)]#, (60, 15*480), (90, 15*480)]
 
 for index, length in indices:
 
