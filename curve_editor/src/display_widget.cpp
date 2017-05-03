@@ -209,10 +209,10 @@ void DisplayWidget::update()
     if (Input::keyPressed(Qt::Key_D))
       translation += m_camera.right();
 
-    if (Input::keyPressed(Qt::Key_A))
+    if (Input::keyPressed(Qt::Key_Shift))
       translation -= m_camera.up();
 
-    if (Input::keyPressed(Qt::Key_E))
+    if (Input::keyPressed(Qt::Key_Space))
       translation += m_camera.up();
 
     m_camera.translate(transSpeed * translation);
@@ -288,32 +288,32 @@ void DisplayWidget::refreshDataToPrint(FPyEditor &e)
       return;
     }
 
-    std::array<double,3> cur_pos {0.,0.,0.};
+    std::array<float,3> cur_pos {0.,0.,0.};
     curve_vertices[0].setPosition({0.f, 0.f, 0.f});
     curve_vertices[0].setColor({1, 1, 0});
-    double *linex = reinterpret_cast<double*>(PyArray_GETPTR1(curve, 0));
-    double *liney = reinterpret_cast<double*>(PyArray_GETPTR1(curve, 1));
-    double *linez = reinterpret_cast<double*>(PyArray_GETPTR1(curve, 2));
+    float *linex = reinterpret_cast<float*>(PyArray_GETPTR1(curve, 0));
+    float *liney = reinterpret_cast<float*>(PyArray_GETPTR1(curve, 1));
+    float *linez = reinterpret_cast<float*>(PyArray_GETPTR1(curve, 2));
     float prev_theta = 0.;
     for (int j = 1; j < dimj; ++j)
     {
       float b = (float)j/dimj;
-      float vx = (float) linex[j];
-      float vy = (float) liney[j];
+      float vx = linex[j];
+      float vy = liney[j];
 
       cur_pos[0] += cos(prev_theta)*vx - sin(prev_theta)*vy;
       cur_pos[1] += sin(prev_theta)*vx + cos(prev_theta)*vy;
       prev_theta += linez[j];
-      curve_vertices[j].setPosition({(float)cur_pos[0],
-          0.f, (float)cur_pos[1]
+      curve_vertices[j].setPosition({cur_pos[0],
+          0.f, cur_pos[1]
           });
       curve_vertices[j].setColor({1, 1, b});
     }
     for (size_t j = dimj; j < curve_vertices.size(); ++j)
     {
-      curve_vertices[j].setPosition({(float)(cur_pos[0]),
-          (float)(cur_pos[1]),
-          (float)(cur_pos[2])});
+      curve_vertices[j].setPosition({(cur_pos[0]),
+          (cur_pos[1]),
+          (cur_pos[2])});
       curve_vertices[j].setColor({1, 1, 1});
     }
 
@@ -353,22 +353,35 @@ void DisplayWidget::refreshDataToPrint(FPyEditor &e)
     {
       qDebug() << "Error in " << __func__ <<
         " : not enough points allocated ( " << dimj << " > "
-        << skel_vertices.size() << ")";
+        << 2*skel_vertices.size() << ")";
       return;
     }
 
     /* Premier joint = racine, on skip */
     /* i indice de joint du squelette, j indice opengl */
-    for (int i = 1, j = 0; i < dimj; ++i, j += 2)
+    for (int j = 0; j < dimj; ++j)
     {
-      float r = (float)i/dimj;
-      int parent = *((int*) PyArray_GETPTR1(parents, i));
-      double *linei = reinterpret_cast<double*>(PyArray_GETPTR2(skel, frame, i));
-      double *linep = reinterpret_cast<double*>(PyArray_GETPTR2(skel, frame, parent));
-      skel_vertices[j].setPosition({(float)linei[0], (float)linei[1], (float)linei[2]});
-      skel_vertices[j].setColor({r, 1, 1});
-      skel_vertices[j+1].setPosition({(float)linep[0], (float)linep[1], (float)linep[2]});
-      skel_vertices[j+1].setColor({r, 1, 1});
+      float r = (float)j/dimj;
+      int parent = *((int*) PyArray_GETPTR1(parents, j));
+
+      float x = *(float*)PyArray_GETPTR3(skel, frame, j, 0);
+      float y = *(float*)PyArray_GETPTR3(skel, frame, j, 1);
+      float z = *(float*)PyArray_GETPTR3(skel, frame, j, 2);
+      skel_vertices[2*j].setPosition({x, y, z});
+      skel_vertices[2*j].setColor({r, 1, 1});
+
+      if (parent != -1)
+      {
+        float px = *(float*)PyArray_GETPTR3(skel, frame, parent, 0);
+        float py = *(float*)PyArray_GETPTR3(skel, frame, parent, 1);
+        float pz = *(float*)PyArray_GETPTR3(skel, frame, parent, 2);
+        skel_vertices[2*j+1].setPosition({px, py, pz});
+        skel_vertices[2*j+1].setColor({r, 1, 1});
+      }
+      else
+      {
+        qDebug() << "Line was " << x << y << z;
+      }
     }
 
     m_skel_buf.bind();

@@ -3,6 +3,7 @@
     <file>shaders/simple.vert</file>
     <file>shaders/simple.frag</file>
     <file>python/base_objects.py</file>
+    <file>python/default_code.py</file>
     <file>python/load_footstepper.py</file>
     <file>python/load_regressor.py</file>
 </qresource>

@@ -18,7 +18,7 @@ FPyEditor::FPyEditor(FOutputScroll *output, QWidget *parent) :
   QPlainTextEdit(parent),
   m_output(output)
 {
-  setPlainText("# Code python, ctrl+entrée pour valider\n");
+  setPlainText(pythonFromRc(":/python/default_code.py"));
   QTextCursor cursor = textCursor();
   cursor.movePosition(QTextCursor::End);
   setTextCursor(cursor);
