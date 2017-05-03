@@ -27,7 +27,6 @@ joints_true_bkp = np.copy(joints)
 skel_bkp = skel
 
 nb_frame = len(joints)
-nb_frame = 200
 
 for i in range(nb_frame):
     joints[i,:,:] = rotation * joints[i]
@@ -37,4 +36,5 @@ for i in range(nb_frame):
     offsets.append(rotation * np.array([0,0,1]))
     translation = translation + rotation * np.array([root_x[i], 0, root_z[i]])
 
+joints = joints.astype(np.float32)
 skel = joints

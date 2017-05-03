@@ -42,6 +42,9 @@ private:
 	Camera3D m_camera;
   Transform3D m_transform;
 
+  // Render information
+  size_t m_current_frame;
+
 protected Q_SLOTS:
   void update();
 public Q_SLOTS:

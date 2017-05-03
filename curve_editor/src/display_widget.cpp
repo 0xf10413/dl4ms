@@ -20,8 +20,13 @@
 #include <array>
 #include <random>
 
-static std::array<Vertex,7200> curve_vertices { };
-static std::array<Vertex,2*22> skel_vertices { };
+constexpr size_t NB_FRAMES = 7200;
+constexpr size_t NB_JOINS = 22;
+
+using std::array;
+
+static array<Vertex,NB_FRAMES> curve_vertices { };
+static std::vector<array<Vertex,2*NB_JOINS>> skel_vertices {NB_FRAMES};
 
 void DisplayWidget::initializeGL()
 {
@@ -85,6 +90,7 @@ void DisplayWidget::initializeGL()
 
 DisplayWidget::DisplayWidget(QWidget *parent) : QOpenGLWidget(parent)
 {
+  m_current_frame = 0;
   m_transform.translate(.0, -1.0, -5.0f);
   QSurfaceFormat format;
   format.setDepthBufferSize(24);
@@ -133,7 +139,7 @@ void DisplayWidget::paintGL()
 
     m_skel_obj.bind();
     m_program->setUniformValue(u_modelToWorld, m_transform.toMatrix());
-    glDrawArrays(GL_LINES, 0, skel_vertices.size()*sizeof(Vertex));
+    glDrawArrays(GL_LINES, 0, 2*NB_JOINS*sizeof(Vertex));
     m_skel_obj.release();
   }
   m_program->release();
@@ -220,6 +226,14 @@ void DisplayWidget::update()
 
   // Update instance information
   //m_transform.rotate(1.0f, QVector3D(0.0f, 1.0f, 0.0f));
+  ++m_current_frame;
+  if (m_current_frame >= NB_FRAMES)
+    m_current_frame = 0;
+
+  m_skel_buf.bind();
+  m_skel_buf.write(0, skel_vertices[m_current_frame].data(),
+      NB_JOINS*2*sizeof(Vertex));
+  m_skel_buf.release();
 
   // Schedule a redraw
   QOpenGLWidget::update();
@@ -330,8 +344,6 @@ void DisplayWidget::refreshDataToPrint(FPyEditor &e)
     boost::python::object parents_ = e.m_main_ns["skel_parents"];
     PyArrayObject *parents = reinterpret_cast<PyArrayObject*>(parents_.ptr());
 
-    static long frame = 0;
-
     const int dims = PyArray_NDIM(skel);
     if (dims > 3)
     {
@@ -343,11 +355,14 @@ void DisplayWidget::refreshDataToPrint(FPyEditor &e)
           dimj = PyArray_DIM(skel, 1),
           dimk = PyArray_DIM(skel, 2);
 
-    if (dimk != 3)
+    if (dimi != NB_FRAMES)
     {
-      qDebug() << "Error in " << __func__ << " : wrong 3rd dimension (" << dimk << " != 3)";
+      qDebug() << "Error in " << __func__ <<
+        " : wrong number of frames ( " << dimi << " != "
+        << NB_FRAMES << ")";
       return;
     }
+
 
     if (dimj > 2*(signed long)skel_vertices.size())
     {
@@ -357,38 +372,40 @@ void DisplayWidget::refreshDataToPrint(FPyEditor &e)
       return;
     }
 
-    /* Premier joint = racine, on skip */
-    /* i indice de joint du squelette, j indice opengl */
-    for (int j = 0; j < dimj; ++j)
+    if (dimk != 3)
     {
-      float r = (float)j/dimj;
-      int parent = *((int*) PyArray_GETPTR1(parents, j));
-
-      float x = *(float*)PyArray_GETPTR3(skel, frame, j, 0);
-      float y = *(float*)PyArray_GETPTR3(skel, frame, j, 1);
-      float z = *(float*)PyArray_GETPTR3(skel, frame, j, 2);
-      skel_vertices[2*j].setPosition({x, y, z});
-      skel_vertices[2*j].setColor({r, 1, 1});
-
-      if (parent != -1)
-      {
-        float px = *(float*)PyArray_GETPTR3(skel, frame, parent, 0);
-        float py = *(float*)PyArray_GETPTR3(skel, frame, parent, 1);
-        float pz = *(float*)PyArray_GETPTR3(skel, frame, parent, 2);
-        skel_vertices[2*j+1].setPosition({px, py, pz});
-        skel_vertices[2*j+1].setColor({r, 1, 1});
-      }
-      else
-      {
-        qDebug() << "Line was " << x << y << z;
-      }
+      qDebug() << "Error in " << __func__ << " : wrong 3rd dimension (" << dimk << " != 3)";
+      return;
     }
 
-    m_skel_buf.bind();
-    m_skel_buf.write(0, skel_vertices.data(), skel_vertices.size()*sizeof(Vertex));
-    m_skel_buf.release();
-    frame += 10;
-    if (frame > dimi)
-      frame = 0;
+    for (int i = 0; i < dimi; ++i)
+    {
+      for (int j = 0; j < dimj; ++j)
+      {
+        float r = (float)j/dimj;
+        int parent = *((int*) PyArray_GETPTR1(parents, j));
+
+        float x = *(float*)PyArray_GETPTR3(skel, i, j, 0);
+        float y = *(float*)PyArray_GETPTR3(skel, i, j, 1);
+        float z = *(float*)PyArray_GETPTR3(skel, i, j, 2);
+        skel_vertices[i][2*j].setPosition({x, y, z});
+        skel_vertices[i][2*j].setColor({r, 1, 1});
+
+        if (parent != -1)
+        {
+          float px = *(float*)PyArray_GETPTR3(skel, i, parent, 0);
+          float py = *(float*)PyArray_GETPTR3(skel, i, parent, 1);
+          float pz = *(float*)PyArray_GETPTR3(skel, i, parent, 2);
+          skel_vertices[i][2*j+1].setPosition({px, py, pz});
+          skel_vertices[i][2*j+1].setColor({r, 1, 1});
+        }
+        else // Racine
+        {
+          skel_vertices[i][2*j+1].setPosition({x, y, z});
+          skel_vertices[i][2*j+1].setColor({r, 1, 1});
+        }
+      }
+    }
+    m_current_frame = 0;
   }
 }

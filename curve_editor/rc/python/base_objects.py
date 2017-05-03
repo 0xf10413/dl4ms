@@ -19,7 +19,7 @@ sys.path.append('../motion/')
 curve = np.zeros((3, 7200), dtype=np.float32)
 curve[0,:] = np.sin(np.linspace(0,np.pi, 7200))/10
 curve[1,:] = np.cos(np.linspace(0,np.pi, 7200))/10
-curve[2,:] = np.sin(np.linspace(0,50*np.pi, 7200))/10
+curve[2,:] = np.sin(np.linspace(0,50*np.pi, 7200))/100
 
 # skel_parents, qui donne la hiérarchie des jointures
 skel_parents = np.array(
