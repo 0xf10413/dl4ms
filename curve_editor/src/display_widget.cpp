@@ -190,39 +190,41 @@ void DisplayWidget::update()
   // Update input
   Input::update();
 
+  static const float transSpeed = 0.1f;
+  QVector3D translation;
+
   // Camera Transformation
   if (Input::buttonPressed(Qt::LeftButton))
   {
     setFocus();
-    static const float transSpeed = 0.1f;
     static const float rotSpeed   = 0.5f;
 
     // Handle rotations
     m_camera.rotate(-rotSpeed * Input::mouseDelta().x(), Camera3D::LocalUp);
     m_camera.rotate(-rotSpeed * Input::mouseDelta().y(), m_camera.right());
 
-    // Handle translations
-    QVector3D translation;
-    if (Input::keyPressed(Qt::Key_Z))
-      translation += m_camera.forward();
-
-    if (Input::keyPressed(Qt::Key_S))
-      translation -= m_camera.forward();
-
-    if (Input::keyPressed(Qt::Key_Q))
-      translation -= m_camera.right();
-
-    if (Input::keyPressed(Qt::Key_D))
-      translation += m_camera.right();
-
-    if (Input::keyPressed(Qt::Key_Shift))
-      translation -= m_camera.up();
-
-    if (Input::keyPressed(Qt::Key_Space))
-      translation += m_camera.up();
-
-    m_camera.translate(transSpeed * translation);
   }
+
+  // Handle translations
+  if (Input::keyPressed(Qt::Key_Z))
+    translation += m_camera.forward();
+
+  if (Input::keyPressed(Qt::Key_S))
+    translation -= m_camera.forward();
+
+  if (Input::keyPressed(Qt::Key_Q))
+    translation -= m_camera.right();
+
+  if (Input::keyPressed(Qt::Key_D))
+    translation += m_camera.right();
+
+  if (Input::keyPressed(Qt::Key_Shift))
+    translation -= m_camera.up();
+
+  if (Input::keyPressed(Qt::Key_Space))
+    translation += m_camera.up();
+
+  m_camera.translate(transSpeed * translation);
 
   // Update instance information
   //m_transform.rotate(1.0f, QVector3D(0.0f, 1.0f, 0.0f));

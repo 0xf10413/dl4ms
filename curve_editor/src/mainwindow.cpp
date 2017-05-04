@@ -42,9 +42,13 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent)
     QVBoxLayout *tmpLayout = new QVBoxLayout;
     m_launchLoadFootstepper = new QPushButton("Charger le footstepper");
     m_launchLoadNetwork = new QPushButton("Charger le réseau principal");
+    m_launchLoadConstraints = new QPushButton("Charger la fonction de contrainte");
+    m_launchConstraints = new QPushButton("Appliquer les contraintes");
+
     tmpLayout->addWidget(m_launchLoadFootstepper);
     tmpLayout->addWidget(m_launchLoadNetwork);
-    tmpLayout->addWidget(new QPushButton("[nothing]"));
+    tmpLayout->addWidget(m_launchLoadConstraints);
+    tmpLayout->addWidget(m_launchConstraints);
     m_groupActions->setLayout(tmpLayout);
   }
 
@@ -62,9 +66,15 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent)
   connect(m_launchLoadNetwork, &QPushButton::clicked,
       [this]{ m_pyEdit->launchPython(pythonFromRc(":/python/load_regressor.py"));
       m_launchLoadNetwork->setText("Recharger le réseau principal");});
+  connect(m_launchLoadConstraints, &QPushButton::clicked,
+      [this]{ m_pyEdit->launchPython(pythonFromRc(":/python/load_constraints.py"));
+      m_launchLoadConstraints->setText("Recharger la fonction de contrainte");});
+  connect(m_launchConstraints, &QPushButton::clicked,
+      [this]{ m_pyEdit->launchPython(pythonFromRc(":/python/launch_constraints.py"));
+      m_launchConstraints->setText("Recalculer les contraintes");});
 
   setLayout(m_glob_layout);
-  resize(1000,800);
+  resize(1000,1000);
   m_pyEdit->setFocus();
 
   /* Actualisation des données */

@@ -29,6 +29,8 @@ private:
 
     QPushButton *m_launchLoadFootstepper;
     QPushButton *m_launchLoadNetwork;
+    QPushButton *m_launchLoadConstraints;
+    QPushButton *m_launchConstraints;
 
     FPyEditor *m_pyEdit;
     DisplayWidget *m_displayWidget;

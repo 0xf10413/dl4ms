@@ -6,5 +6,7 @@
     <file>python/default_code.py</file>
     <file>python/load_footstepper.py</file>
     <file>python/load_regressor.py</file>
+    <file>python/load_constraints.py</file>
+    <file>python/launch_constraints.py</file>
 </qresource>
 </RCC>
