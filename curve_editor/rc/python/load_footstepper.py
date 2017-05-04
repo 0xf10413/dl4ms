@@ -35,6 +35,8 @@ network_footstepper.load(np.load('../synth/network_footstepper.npz'))
 network_footstepper_func = theano.function([input], network_footstepper(input), allow_input_downcast=True)
 
 W = network_footstepper_func(Torig[:,:3])
+W = (W * preprocess_footstepper['Wstd']) + preprocess_footstepper['Wmean']
+W = W.astype(np.float32)
 
 alpha, beta = 1.0, 0.0
 minstep, maxstep = 0.9, -0.5

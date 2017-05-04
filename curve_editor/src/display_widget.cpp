@@ -18,7 +18,6 @@
 #include <numpy/arrayobject.h>
 
 #include <array>
-#include <random>
 
 constexpr size_t NB_FRAMES = 7200;
 constexpr size_t NB_JOINS = 22;
@@ -99,22 +98,6 @@ DisplayWidget::DisplayWidget(QWidget *parent) : QOpenGLWidget(parent)
 
   setMinimumSize(QSize(400,400));
   setMaximumSize(QSize(400,400));
-  curve_vertices[0] = Vertex(QVector3D{1,1,1}, QVector3D{1,0,0} );
-  curve_vertices[1] = Vertex(QVector3D{1,0,0}, QVector3D{0,1,0} );
-  curve_vertices[2] = Vertex(QVector3D{1,0,0}, QVector3D{0,1,0} );
-  curve_vertices[3] = Vertex(QVector3D{0,1,0}, QVector3D{0,0,1} );
-  curve_vertices[4] = Vertex(QVector3D{0,0,1}, QVector3D{1,0,1} );
-
-  std::uniform_real_distribution<float> unif(0,1);
-  std::mt19937 mersenne(41);
-
-  /* Random colors */
-  for (size_t i = 0; i < curve_vertices.size(); ++i)
-  {
-    float r = (float)i/curve_vertices.size();
-    float g = (1.f-i)/curve_vertices.size();
-    curve_vertices[i].setColor({r, g, 1});
-  }
 }
 
 DisplayWidget::~DisplayWidget()
@@ -190,7 +173,7 @@ void DisplayWidget::update()
   // Update input
   Input::update();
 
-  static const float transSpeed = 0.1f;
+  static const float transSpeed = 0.5f;
   QVector3D translation;
 
   // Camera Transformation
@@ -307,23 +290,18 @@ void DisplayWidget::refreshDataToPrint(FPyEditor &e)
     std::array<float,3> cur_pos {0.,0.,0.};
     curve_vertices[0].setPosition({0.f, 0.f, 0.f});
     curve_vertices[0].setColor({1, 1, 0});
-    float *linex = reinterpret_cast<float*>(PyArray_GETPTR1(curve, 0));
-    float *liney = reinterpret_cast<float*>(PyArray_GETPTR1(curve, 1));
-    float *linez = reinterpret_cast<float*>(PyArray_GETPTR1(curve, 2));
     float prev_theta = 0.;
     for (int j = 1; j < dimj; ++j)
     {
       float b = (float)j/dimj;
-      float vx = linex[j];
-      float vy = liney[j];
+      float vx = *(float*)PyArray_GETPTR2(curve, 0, j);
+      float vy = *(float*)PyArray_GETPTR2(curve, 1, j);
 
       cur_pos[0] += cos(prev_theta)*vx - sin(prev_theta)*vy;
       cur_pos[1] += sin(prev_theta)*vx + cos(prev_theta)*vy;
-      prev_theta += linez[j];
-      curve_vertices[j].setPosition({cur_pos[0],
-          0.f, cur_pos[1]
-          });
+      curve_vertices[j].setPosition({cur_pos[0], 0.f, cur_pos[1]});
       curve_vertices[j].setColor({1, 1, b});
+      prev_theta += *(float*)PyArray_GETPTR2(curve, 2, j);
     }
     for (size_t j = dimj; j < curve_vertices.size(); ++j)
     {

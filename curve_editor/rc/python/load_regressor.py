@@ -11,8 +11,10 @@ network_first, network_second, network = create_network(Torig.shape[2], Torig.sh
 network_func = theano.function([input], network(input), allow_input_downcast=True)
 Xrecn = network_func(Torig)
 Xrecn = (Xrecn * preprocess['Xstd']) + preprocess['Xmean']
-Xrecn = np.swapaxes(Xrecn[0],0,1)
 Xtraj = ((Torig * preprocess['Xstd'][:,-7:]) + preprocess['Xmean'][:,-7:]).copy()
+
+Xrecn[:,-7:] = Xtraj
+Xrecn = np.swapaxes(Xrecn[0],0,1)
 
 def joints_from_Xrecn(Xrecn):
     joints, root_x, root_z, root_r = Xrecn[:,:-7], Xrecn[:,-7], Xrecn[:,-6], Xrecn[:,-5]
