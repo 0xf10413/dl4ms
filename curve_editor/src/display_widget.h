@@ -43,12 +43,16 @@ private:
   Transform3D m_transform;
 
   // Render information
-  size_t m_current_frame;
+  int m_current_frame, m_fps;
 
 protected Q_SLOTS:
   void update();
 public Q_SLOTS:
   void refreshDataToPrint(class FPyEditor &); // Réévalue les données d'espace
+  void play_pause();
+  void stop();
+  void faster();
+  void slower();
 
 protected:
 	void keyPressEvent(QKeyEvent *ev);

@@ -32,6 +32,9 @@ private:
     QPushButton *m_launchLoadConstraints;
     QPushButton *m_launchConstraints;
 
+    QPushButton *m_play_pause, *m_stop,
+                *m_faster, *m_slower;
+
     FPyEditor *m_pyEdit;
     DisplayWidget *m_displayWidget;
     FOutputScroll *m_outputScroll;

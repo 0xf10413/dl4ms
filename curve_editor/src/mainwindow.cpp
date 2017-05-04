@@ -20,10 +20,28 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent)
   /* OpenGL + textEdit */
   QVBoxLayout *vbox_left = new QVBoxLayout;
   {
-    QLayout *tmpLayout = new QHBoxLayout();
+    QHBoxLayout *tmpLayout = new QHBoxLayout();
 
-    m_displayWidget = new DisplayWidget(this);
-    tmpLayout->addWidget(m_displayWidget);
+    /* OpenGL + boutons */
+    {
+      m_displayWidget = new DisplayWidget(this);
+      m_play_pause = new QPushButton ("Pause");
+      m_stop = new QPushButton ("Stop");
+      m_faster = new QPushButton("Faster");
+      m_slower = new QPushButton ("Slower");
+
+      QLayout *displayButtonsLayout = new QHBoxLayout;
+      displayButtonsLayout->addWidget(m_play_pause);
+      displayButtonsLayout->addWidget(m_stop);
+      displayButtonsLayout->addWidget(m_faster);
+      displayButtonsLayout->addWidget(m_slower);
+
+      QVBoxLayout *displayWidgetLayout = new QVBoxLayout;
+      displayWidgetLayout->addWidget(m_displayWidget);
+      displayWidgetLayout->addLayout(displayButtonsLayout);
+
+      tmpLayout->addLayout(displayWidgetLayout);
+    }
 
     m_pyEdit = new FPyEditor(m_outputScroll);
     tmpLayout->addWidget(m_pyEdit);
@@ -60,6 +78,16 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent)
   /* Liens divers */
   connect(m_pyEdit, &FPyEditor::dataMayHaveChanged,
       m_displayWidget, &DisplayWidget::refreshDataToPrint);
+
+  connect(m_play_pause, &QPushButton::clicked,
+      m_displayWidget, &DisplayWidget::play_pause);
+  connect(m_stop, &QPushButton::clicked,
+      m_displayWidget, &DisplayWidget::stop);
+  connect(m_faster, &QPushButton::clicked,
+      m_displayWidget, &DisplayWidget::faster);
+  connect(m_slower, &QPushButton::clicked,
+      m_displayWidget, &DisplayWidget::slower);
+
   connect(m_launchLoadFootstepper, &QPushButton::clicked,
       [this]{ m_pyEdit->launchPython(pythonFromRc(":/python/load_footstepper.py"));
       m_launchLoadFootstepper->setText("Recharger le footstepper"); });

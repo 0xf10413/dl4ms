@@ -90,6 +90,8 @@ void DisplayWidget::initializeGL()
 DisplayWidget::DisplayWidget(QWidget *parent) : QOpenGLWidget(parent)
 {
   m_current_frame = 0;
+  m_fps = 1;
+
   m_transform.translate(.0, -1.0, -5.0f);
   QSurfaceFormat format;
   format.setDepthBufferSize(24);
@@ -191,8 +193,12 @@ void DisplayWidget::update()
   // Handle translations
   if (Input::keyPressed(Qt::Key_Z))
     translation += m_camera.forward();
+  if(Input::buttonPressed(Qt::MidButton))
+    translation += m_camera.forward();
 
   if (Input::keyPressed(Qt::Key_S))
+    translation -= m_camera.forward();
+  if (Input::buttonPressed(Qt::RightButton))
     translation -= m_camera.forward();
 
   if (Input::keyPressed(Qt::Key_Q))
@@ -211,9 +217,11 @@ void DisplayWidget::update()
 
   // Update instance information
   //m_transform.rotate(1.0f, QVector3D(0.0f, 1.0f, 0.0f));
-  ++m_current_frame;
-  if (m_current_frame >= NB_FRAMES)
+  m_current_frame += m_fps;
+  if (m_current_frame >= (signed int) NB_FRAMES)
     m_current_frame = 0;
+  if (m_current_frame < 0)
+    m_current_frame = NB_FRAMES - 1;
 
   m_skel_buf.bind();
   m_skel_buf.write(0, skel_vertices[m_current_frame].data(),
@@ -386,6 +394,30 @@ void DisplayWidget::refreshDataToPrint(FPyEditor &e)
         }
       }
     }
-    m_current_frame = 0;
   }
+}
+
+void DisplayWidget::play_pause()
+{
+  m_fps = !m_fps;
+}
+
+void DisplayWidget::stop()
+{
+  m_fps = 0;
+  m_current_frame = 0;
+}
+
+void DisplayWidget::faster()
+{
+  ++m_fps;
+  if (m_fps == 0)
+    ++m_fps;
+}
+
+void DisplayWidget::slower()
+{
+  --m_fps;
+  if (m_fps == 0)
+    --m_fps;
 }
