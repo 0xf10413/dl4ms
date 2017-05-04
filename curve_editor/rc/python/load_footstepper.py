@@ -46,3 +46,5 @@ Torig = (np.concatenate([Torig,
     (np.sin(np.cumsum(alpha*W[:,0:1],axis=2)+off_lt)>np.clip(np.cos(W[:,2:3])+beta, maxstep, minstep)).astype(theano.config.floatX)*2-1,
     (np.sin(np.cumsum(alpha*W[:,0:1],axis=2)+off_rh)>np.clip(np.cos(W[:,3:4])+beta, maxstep, minstep)).astype(theano.config.floatX)*2-1,
     (np.sin(np.cumsum(alpha*W[:,0:1],axis=2)+off_rt)>np.clip(np.cos(W[:,4:5])+beta, maxstep, minstep)).astype(theano.config.floatX)*2-1], axis=1))
+
+Torig = Torig.astype(np.float32)

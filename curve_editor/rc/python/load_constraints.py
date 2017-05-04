@@ -65,7 +65,8 @@ def joint_lengths(
 ## flo: contient un c-c de nn/AdamTrainer
 def constrain(X, forward, backward, preprocess, constraint, alpha=0.1, iterations=100):
 
-    H = theano.shared(np.array(forward(theano.shared((X - preprocess['Xmean']) / preprocess['Xstd'])).eval()))
+    H = theano.shared(np.array(forward(theano.shared((X - preprocess['Xmean']) /
+        preprocess['Xstd'])).eval(), dtype=theano.config.floatX))
     V = (backward(H) * preprocess['Xstd']) + preprocess['Xmean']
 
     cost = constraint(H, V)
