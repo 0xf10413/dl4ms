@@ -126,25 +126,24 @@ if not os.path.isfile(learning_filename):
                     np.logical_and(cl[:,0] == mo, cl[:,1] == st))[0]
             if not len(where):
                 continue
-            for i in np.nditer(where):
-                np.random.shuffle(where)
-                stop = len(where)//2
-                if training is None:
-                    training = database[where[:stop]]
-                    training_target = cl[where[:stop]][:,0]
-                else:
-                    training = np.concatenate((training,
-                        database[where[:stop]]))
-                    training_target = np.concatenate((training_target,
-                        cl[where[:stop]][:,0]))
-                if testing is None:
-                    testing = database[where[stop:]]
-                    testing_target = cl[where[stop:]][:,0]
-                else:
-                    testing = np.concatenate((testing,
-                        database[where[stop:]]))
-                    testing_target = np.concatenate((testing_target,
-                        cl[where[stop:]][:,0]))
+            np.random.shuffle(where)
+            stop = 3*len(where)//4
+            if training is None:
+                training = database[where[:stop]]
+                training_target = cl[where[:stop]][:,0]
+            else:
+                training = np.concatenate((training,
+                    database[where[:stop]]))
+                training_target = np.concatenate((training_target,
+                    cl[where[:stop]][:,0]))
+            if testing is None:
+                testing = database[where[stop:]]
+                testing_target = cl[where[stop:]][:,0]
+            else:
+                testing = np.concatenate((testing,
+                    database[where[stop:]]))
+                testing_target = np.concatenate((testing_target,
+                    cl[where[stop:]][:,0]))
 
         print("Done with motion {}".format(styletransfer_motions[mo]))
     np.savez(learning_filename, training=training, testing=testing,
@@ -184,7 +183,36 @@ if not os.path.isfile(trained_file):
     plt.show()
 
 net.load_state_dict(torch.load(trained_file))
+input = Variable(torch.from_numpy(testing))
+target = Variable(torch.from_numpy(testing_target))
 print("Check :")
-a = net(input)
-print(a)
+output = net(input)
+
+confusion_matrix = np.zeros((8,8))
+for i in range(len(output)):
+    predict = np.argmax(output.data[i].numpy())
+    truth = testing_target[i]
+    confusion_matrix[truth, predict] += 1
+    if predict != truth:
+        print("{} : guessed {}, was {}".format(i,
+            styletransfer_motions[predict],
+            styletransfer_motions[truth]))
+
+with open('confusion_matrix.csv', 'w+') as f:
+    f.write("↓ Truth/Predicted →,")
+    for cl in styletransfer_motions:
+        f.write(cl + ',')
+    f.write('\n')
+    for line in range(8):
+        f.write(styletransfer_motions[line] + ',')
+        for col in range(8):
+            f.write(str(confusion_matrix[line,col]))
+            f.write(',')
+        f.write('\n')
+
+print("Confusion matrix written at confusion_matrix.csv")
+
+accuracy = sum([confusion_matrix[i,i] for i in range(8)])/np.sum(confusion_matrix)
+
+print("Accuracy is {:.2f}%".format(accuracy*100))
 
