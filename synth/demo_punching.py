@@ -54,6 +54,6 @@ for i in range(len(X)):
     Xrecn = constrain(Xrecn, network_second[0], network_second[1], preprocess, multiconstraint(
         foot_sliding(Xrecn[:,-4:].copy()),
         joint_lengths()), alpha=0.01, iterations=50)
-    
+
     animation_plot([Xorig, Xrecn], interval=15.15)
 

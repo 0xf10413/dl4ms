@@ -131,5 +131,5 @@ for index, length in indices:
     print("Xtraj has shape", Xtraj.shape)
     #np.savez_compressed('X_regression.npz', Xrecn=Xrecn, curve=curve, Xtraj=Xtraj)
 
-    #animation_plot([Xnonc, Xrecn], interval=15.15)
+    animation_plot([Xnonc, Xrecn], interval=15.15)
 
