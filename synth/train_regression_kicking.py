@@ -47,4 +47,4 @@ E = theano.shared(X, borrow=True)
 F = theano.shared(Y, borrow=True)
 
 trainer = AdamTrainer(rng=rng, batchsize=batchsize, epochs=100, alpha=0.00001)
-trainer.train(network, F, E, filename='network_regression_kick.npz')
+trainer.train(network, F, E, filename='network_regression_kick_flo.npz')

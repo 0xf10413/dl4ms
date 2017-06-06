@@ -19,19 +19,19 @@ rng = np.random.RandomState(23455)
 
 print("-> Now loading edin_locomotion data...")
 loading_edin = time.time()
-#data = np.load('../data/processed/data_edin_locomotion.npz')['clips']
-#
-#I = np.arange(len(data))
-#rng.shuffle(I)
-#
-#data_train = data[I[:len(data)//2]]
-#data_valid = data[I[len(data)//2:]]
-#
-#X = data_valid
-#X = np.swapaxes(X, 1, 2).astype(theano.config.floatX)
-#
-preprocess = np.load('preprocess_core.npz')
-preprocess_footstepper = np.load('preprocess_footstepper.npz')
+data = np.load('../data/processed/data_edin_locomotion.npz')['clips']
+
+I = np.arange(len(data))
+rng.shuffle(I)
+
+data_train = data[I[:len(data)//2]]
+data_valid = data[I[len(data)//2:]]
+
+X = data_valid
+X = np.swapaxes(X, 1, 2).astype(theano.config.floatX)
+
+preprocess = np.load('preprocess_core_flo.npz')
+preprocess_footstepper = np.load('preprocess_footstepper_flo.npz')
 #X = (X - preprocess['Xmean']) / preprocess['Xstd']
 print("-> Done loading edin_locomotion in", time.time()-loading_edin)
 
@@ -40,9 +40,9 @@ batchsize = 1
 def create_network(window, input):
     network_first = create_regressor(batchsize=batchsize, window=window, input=input, dropout=0.0)
     network_second = create_core(batchsize=batchsize, window=window, dropout=0.0, depooler=lambda x,**kw:x/2)
-    network_second.load(np.load('network_core.npz'))
+    network_second.load(np.load('network_core_flo.npz'))
     network = Network(network_first, network_second[1], params=network_first.params)
-    network.load(np.load('network_regression.npz'))
+    network.load(np.load('network_regression_flo.npz'))
     return network_first, network_second, network
 
 from AnimationPlot import animation_plot
@@ -65,7 +65,7 @@ for index, length in indices:
     print("-> Re-creating footstepper...")
     recreating_footstepper = time.time()
     network_footstepper = create_footstepper(batchsize=batchsize, window=Torig.shape[2], dropout=0.0)
-    network_footstepper.load(np.load('network_footstepper.npz'))
+    network_footstepper.load(np.load('network_footstepper_flo.npz'))
     network_footstepper_func = theano.function([input], network_footstepper(input), allow_input_downcast=True)
     print("-> Done re-creating footstepper in", time.time()-recreating_footstepper)
 

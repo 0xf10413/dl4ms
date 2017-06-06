@@ -36,9 +36,9 @@ window = X.shape[2]
 
 network_first = create_regressor(batchsize=batchsize, window=window, input=Y.shape[1], dropout=0.0)
 network_second = create_core(batchsize=batchsize, window=window, dropout=0.0, depooler=lambda x,**kw:x/2)
-network_second.load(np.load('network_core.npz'))
+network_second.load(np.load('network_core_flo.npz'))
 network = Network(network_first, network_second[1], params=network_first.params)
-network.load(np.load('network_regression_kick.npz'))
+network.load(np.load('network_regression_kick_flo.npz'))
 
 from AnimationPlot import animation_plot
 

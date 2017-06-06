@@ -3,7 +3,7 @@
 Calcul effectif de la fonction de contrainte
 """
 
-iterations = 5
+iterations = 500
 backward = network_second[1]
 
 for i in range(iterations):
