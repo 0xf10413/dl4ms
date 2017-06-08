@@ -89,8 +89,8 @@ for i in range(len(indexes)):
 for i in range(len(indexes)):
     #plt.subplot(4, len(indexes)//4+1, i+1, aspect="equal")
     plt.figure()
-    to_draw = C[indexes[i]][0] > 10
-    plt.imshow(to_draw,cmap=plt.get_cmap('Greys'))
+    to_draw = C[indexes[i]][0]
+    plt.imshow(to_draw,cmap=plt.get_cmap('coolwarm'))
     plt.title(indexes[i])
     plt.xticks([])
     plt.yticks([])

@@ -15,7 +15,9 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 
 """
-Tente de classifier les clips selon le mouvement
+Classe les clips selon le mouvement ou le style
+Utilise une BDD très équitablement répartie (i.e., pour chaque paire move/style,
+70% est utilisé pour l'apprentissage, le reste pour le test)
 """
 
 sys.path.append('../nn')
@@ -85,22 +87,19 @@ C = np.load(filename)
 class SLP(nn.Module):
     """
     Perceptron à une seule couche
+    La sortie est passée à travers un softlogmax
     """
     def __init__(self,output_size):
         super(SLP, self).__init__()
         self.fc1 = nn.Linear(256*256, output_size)
-        #self.fc2 = nn.Linear(256, output_size)
         self.logsoftmax = nn.LogSoftmax()
 
     def forward(self,x):
         x = self.fc1(x)
-        #x = self.fc2(x)
         x = self.logsoftmax(x)
         return x
 
 
-# Entraînement sur deux mouvements différents pour un même style (normal)
-# fast_punching et fast_walking
 def extract_and_cat(C, indexes):
     """
     Extrait les matrices d'indice dans indexes de C,
@@ -111,7 +110,10 @@ def extract_and_cat(C, indexes):
     output = normalize(output)
     return output
 
-
+"""
+Création de l'ensemble de données d'entraînement/test
+et des targets correspondantes
+"""
 learning_filename = 'motions_learning.npz'
 if not os.path.isfile(learning_filename):
     database = extract_and_cat(C, range(559))
@@ -130,20 +132,20 @@ if not os.path.isfile(learning_filename):
             stop = 3*len(where)//4
             if training is None:
                 training = database[where[:stop]]
-                training_target = cl[where[:stop]][:,0]
+                training_target = cl[where[:stop]]
             else:
                 training = np.concatenate((training,
                     database[where[:stop]]))
                 training_target = np.concatenate((training_target,
-                    cl[where[:stop]][:,0]))
+                    cl[where[:stop]]))
             if testing is None:
                 testing = database[where[stop:]]
-                testing_target = cl[where[stop:]][:,0]
+                testing_target = cl[where[stop:]]
             else:
                 testing = np.concatenate((testing,
                     database[where[stop:]]))
                 testing_target = np.concatenate((testing_target,
-                    cl[where[stop:]][:,0]))
+                    cl[where[stop:]]))
 
         print("Done with motion {}".format(styletransfer_motions[mo]))
     np.savez(learning_filename, training=training, testing=testing,
@@ -153,25 +155,38 @@ D = np.load(learning_filename)
 training, testing = D['training'], D['testing']
 training_target, testing_target = D['training_target'], D['testing_target']
 
+
+#######################################
+"""
+Premier apprentissage : mouvements
+"""
+#######################################
+
 input = Variable(torch.from_numpy(training))
-target = Variable(torch.from_numpy(training_target))
+target = Variable(torch.from_numpy(training_target[:,0]))
 
 number_of_classes = 8
 net = SLP(number_of_classes)
 print("Training with a SLP. Réseau utilisé :", net)
 crit = nn.NLLLoss()
-optimizer = optim.SGD(net.parameters(), lr=.5)
+#optimizer = optim.SGD(net.parameters(), lr=.5)
 #optimizer = optim.SGD(net.parameters(), lr=.01, momentum=.5)
-#optimizer = optim.Adam(net.parameters(), lr=.001)
+optimizer = optim.Adam(net.parameters(), lr=.1)
 
+"""
+Entraînement effectif du réseau
+"""
 trained_file = "nn_motion_trained.npz"
 if not os.path.isfile(trained_file):
-    max_epoch = 1000+1
+    max_epoch = 500+1
     losses = np.zeros((max_epoch,))
     for epoch in range(max_epoch):
-        output = net(input)
+        optimizer.zero_grad()
+
+        output = net(input.float())
         loss = crit(output, target)
         loss.backward()
+
         optimizer.step()
         #if epoch % (max_epoch // 10) == 0:
         print("Ending epoch {}, loss was {}".format(epoch, loss.data[0]))
@@ -182,16 +197,19 @@ if not os.path.isfile(trained_file):
     plt.title("Losses per epoch")
     plt.show()
 
+
+"""
+Évaluation des résultats
+"""
 net.load_state_dict(torch.load(trained_file))
 input = Variable(torch.from_numpy(testing))
-target = Variable(torch.from_numpy(testing_target))
-print("Check :")
-output = net(input)
-
+target = Variable(torch.from_numpy(testing_target[:,0]))
+output = net(input.float())
 confusion_matrix = np.zeros((8,8))
+
 for i in range(len(output)):
     predict = np.argmax(output.data[i].numpy())
-    truth = testing_target[i]
+    truth = testing_target[i,0]
     confusion_matrix[truth, predict] += 1
     if predict != truth:
         print("{} : guessed {}, was {}".format(i,
@@ -211,6 +229,87 @@ with open('confusion_matrix.csv', 'w+') as f:
         f.write('\n')
 
 print("Confusion matrix written at confusion_matrix.csv")
+
+accuracy = sum([confusion_matrix[i,i] for i in range(8)])/np.sum(confusion_matrix)
+
+print("Accuracy is {:.2f}%".format(accuracy*100))
+
+#######################################
+"""
+Second apprentissage : styles
+"""
+#######################################
+print("Now for style learning")
+
+input = Variable(torch.from_numpy(training))
+target = Variable(torch.from_numpy(training_target[:,1]))
+
+number_of_classes = 8
+net = SLP(number_of_classes)
+print("Training with a SLP. Réseau utilisé :", net)
+crit = nn.NLLLoss()
+#optimizer = optim.SGD(net.parameters(), lr=.5)
+#optimizer = optim.SGD(net.parameters(), lr=.01, momentum=.5)
+optimizer = optim.Adam(net.parameters(), lr=.1)
+
+"""
+Entraînement effectif du réseau
+"""
+trained_file = "nn_style_trained.npz"
+if not os.path.isfile(trained_file):
+    max_epoch = 500+1
+    losses = np.zeros((max_epoch,))
+    for epoch in range(max_epoch):
+        optimizer.zero_grad()
+
+        output = net(input.float())
+        loss = crit(output, target)
+        loss.backward()
+
+        optimizer.step()
+        #if epoch % (max_epoch // 10) == 0:
+        print("Ending epoch {}, loss was {}".format(epoch, loss.data[0]))
+        losses[epoch] = loss.data[0]
+    print("Now saving...")
+    torch.save(net.state_dict(), trained_file)
+    plt.plot(losses)
+    plt.title("Losses per epoch")
+    plt.show()
+
+
+"""
+Évaluation des résultats
+"""
+net.load_state_dict(torch.load(trained_file))
+input = Variable(torch.from_numpy(testing))
+target = Variable(torch.from_numpy(testing_target[:,1]))
+output = net(input.float())
+confusion_matrix = np.zeros((8,8))
+
+for i in range(len(output)):
+    predict = np.argmax(output.data[i].numpy())
+    truth = testing_target[i,1]
+    truth_motion = testing_target[i,0]
+    confusion_matrix[truth, predict] += 1
+    if predict != truth:
+        print("{} : guessed {}, was {}+{}".format(i,
+            styletransfer_styles[predict],
+            styletransfer_styles[truth],
+            styletransfer_motions[truth_motion]))
+
+with open('confusion_matrix2.csv', 'w+') as f:
+    f.write("↓ Truth/Predicted →,")
+    for cl in styletransfer_styles:
+        f.write(cl + ',')
+    f.write('\n')
+    for line in range(8):
+        f.write(styletransfer_styles[line] + ',')
+        for col in range(8):
+            f.write(str(confusion_matrix[line,col]))
+            f.write(',')
+        f.write('\n')
+
+print("Confusion matrix written at confusion_matrix2.csv")
 
 accuracy = sum([confusion_matrix[i,i] for i in range(8)])/np.sum(confusion_matrix)
 
