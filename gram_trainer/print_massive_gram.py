@@ -91,6 +91,7 @@ for i in range(len(indexes)):
     plt.figure()
     to_draw = C[indexes[i]][0]
     plt.imshow(to_draw,cmap=plt.get_cmap('coolwarm'))
+    plt.colorbar()
     plt.title(indexes[i])
     plt.xticks([])
     plt.yticks([])

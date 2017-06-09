@@ -235,7 +235,7 @@ if not os.path.isfile(trained_file):
     torch.save(net.state_dict(), trained_file)
     plt.plot(losses)
     plt.title("Losses per epoch")
-    plt.show()
+    #plt.show()
 
 
 """
@@ -245,7 +245,7 @@ net.load_state_dict(torch.load(trained_file))
 input = Variable(torch.from_numpy(testing_motion))
 target = Variable(torch.from_numpy(testing_target_motion))
 output = net(input.float())
-confusion_matrix = np.zeros((8,8))
+confusion_matrix = np.zeros((8,8), dtype=np.int32)
 
 for i in range(len(output)):
     predict = np.argmax(output.data[i].numpy())
@@ -314,7 +314,7 @@ if not os.path.isfile(trained_file):
     torch.save(net.state_dict(), trained_file)
     plt.plot(losses)
     plt.title("Losses per epoch")
-    plt.show()
+    #plt.show()
 
 
 """
@@ -324,7 +324,7 @@ net.load_state_dict(torch.load(trained_file))
 input = Variable(torch.from_numpy(testing_style))
 target = Variable(torch.from_numpy(testing_target_style))
 output = net(input.float())
-confusion_matrix = np.zeros((8,8))
+confusion_matrix = np.zeros((8,8), dtype=np.int32)
 
 for i in range(len(output)):
     predict = np.argmax(output.data[i].numpy())

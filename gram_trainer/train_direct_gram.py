@@ -16,8 +16,8 @@ import matplotlib.pyplot as plt
 
 """
 Classe les clips selon le mouvement ou le style
-Utilise une BDD très équitablement répartie (i.e., pour chaque paire move/style,
-70% est utilisé pour l'apprentissage, le reste pour le test)
+Utilise une BDD répartie aléatoirement (par "tas" de style ou de mouvement)
+Se base sur le mouvement *avant* d'être passé dans la base cachée (le mouvement d'origine)
 """
 
 sys.path.append('../nn')
@@ -47,35 +47,30 @@ preprocess = np.load('../synth/preprocess_core.npz')
 
 Xstyletransfer = (Xstyletransfer - preprocess['Xmean']) / preprocess['Xstd']
 
-def create_network(batchsize, window):
-    network = create_core(batchsize=batchsize, window=window, dropout=0.0, depooler=lambda x,**kw: x/2, rng=rng)
-    network.load(np.load('../synth/network_core.npz'))
-    return network
-
 pairings = [
    (i, Xstyletransfer) for i in range(len(Xstyletransfer))
 ]
 timelen = 240
-filename = 'all_grams.npz'
+filename = 'all_direct_grams.npz'
 print("Done loading data")
 
 grams = dict()
 if not os.path.isfile(filename):
-    network = create_network(1, timelen)
     print("Generating {}".format(filename))
+    def gram_matrix(X):
+        return T.sum(X.dimshuffle(0,'x',1,2) * X.dimshuffle(0,1,'x',2), axis=3)
+    H = T.tensor3()
+    to_gram = theano.function([H], gram_matrix(H))
     for i, db in pairings:
         S = [db[i:i+1]]
         assert S[0].shape[2] == timelen, "Wrong time shape"
 
-        def gram_matrix(X):
-            return T.sum(X.dimshuffle(0,'x',1,2) * X.dimshuffle(0,1,'x',2), axis=3)
         def implot(X,title=""):
             plt.imshow(X)
             plt.colorbar()
             plt.title(title)
             plt.show()
-        H = network[0](S[0])
-        G = np.array(gram_matrix(H).eval())
+        G = np.array(to_gram(S[0]))
         grams[str(i)] = G
         print("Done with matrix {}".format(i))
 
@@ -91,7 +86,7 @@ class SLP(nn.Module):
     """
     def __init__(self,output_size):
         super(SLP, self).__init__()
-        self.fc1 = nn.Linear(256*256, output_size)
+        self.fc1 = nn.Linear(73**2, output_size)
         self.logsoftmax = nn.LogSoftmax()
 
     def forward(self,x):
@@ -112,9 +107,9 @@ def extract_and_cat(C, indexes):
 
 """
 Création de l'ensemble de données d'entraînement/test
-et des targets correspondantes
+et des targets correspondantes, pour les mouvements
 """
-learning_filename = 'motions_learning.npz'
+learning_filename = 'gram_motions_direct.npz'
 if not os.path.isfile(learning_filename):
     database = extract_and_cat(C, range(559))
     training = None
@@ -123,37 +118,78 @@ if not os.path.isfile(learning_filename):
     testing_target = None
     cl = styletransfer_classes
     for mo in range(len(styletransfer_motions)):
-        for st in range(len(styletransfer_styles)):
-            where = np.where(
-                    np.logical_and(cl[:,0] == mo, cl[:,1] == st))[0]
-            if not len(where):
-                continue
-            np.random.shuffle(where)
-            stop = 3*len(where)//4
-            if training is None:
-                training = database[where[:stop]]
-                training_target = cl[where[:stop]]
-            else:
-                training = np.concatenate((training,
-                    database[where[:stop]]))
-                training_target = np.concatenate((training_target,
-                    cl[where[:stop]]))
-            if testing is None:
-                testing = database[where[stop:]]
-                testing_target = cl[where[stop:]]
-            else:
-                testing = np.concatenate((testing,
-                    database[where[stop:]]))
-                testing_target = np.concatenate((testing_target,
-                    cl[where[stop:]]))
+        where = np.where(cl[:,0] == mo)[0]
+        if not len(where):
+            continue
+        np.random.shuffle(where)
+        stop = 3*len(where)//4
+        if training is None:
+            training = database[where[:stop]]
+            training_target = cl[where[:stop]][:,0]
+        else:
+            training = np.concatenate((training,
+                database[where[:stop]]))
+            training_target = np.concatenate((training_target,
+                cl[where[:stop]][:,0]))
+        if testing is None:
+            testing = database[where[stop:]]
+            testing_target = cl[where[stop:]][:,0]
+        else:
+            testing = np.concatenate((testing,
+                database[where[stop:]]))
+            testing_target = np.concatenate((testing_target,
+                cl[where[stop:]][:,0]))
 
         print("Done with motion {}".format(styletransfer_motions[mo]))
     np.savez(learning_filename, training=training, testing=testing,
             training_target=training_target, testing_target=testing_target)
 
 D = np.load(learning_filename)
-training, testing = D['training'], D['testing']
-training_target, testing_target = D['training_target'], D['testing_target']
+training_motion, testing_motion = D['training'], D['testing']
+training_target_motion, testing_target_motion = D['training_target'], D['testing_target']
+
+"""
+Création de l'ensemble de données d'entraînement/test
+et des targets correspondantes, pour les styles
+"""
+learning_filename = 'gram_styles_direct.npz'
+if not os.path.isfile(learning_filename):
+    database = extract_and_cat(C, range(559))
+    training = None
+    training_target = None
+    testing = None
+    testing_target = None
+    cl = styletransfer_classes
+    for st in range(len(styletransfer_styles)):
+        where = np.where(cl[:,0] == st)[0]
+        if not len(where):
+            continue
+        np.random.shuffle(where)
+        stop = 3*len(where)//4
+        if training is None:
+            training = database[where[:stop]]
+            training_target = cl[where[:stop]][:,1]
+        else:
+            training = np.concatenate((training,
+                database[where[:stop]]))
+            training_target = np.concatenate((training_target,
+                cl[where[:stop]][:,1]))
+        if testing is None:
+            testing = database[where[stop:]]
+            testing_target = cl[where[stop:]][:,1]
+        else:
+            testing = np.concatenate((testing,
+                database[where[stop:]]))
+            testing_target = np.concatenate((testing_target,
+                cl[where[stop:]][:,1]))
+
+        print("Done with style {}".format(styletransfer_motions[st]))
+    np.savez(learning_filename, training=training, testing=testing,
+            training_target=training_target, testing_target=testing_target)
+
+D = np.load(learning_filename)
+training_style, testing_style = D['training'], D['testing']
+training_target_style, testing_target_style = D['training_target'], D['testing_target']
 
 
 #######################################
@@ -162,8 +198,8 @@ Premier apprentissage : mouvements
 """
 #######################################
 
-input = Variable(torch.from_numpy(training))
-target = Variable(torch.from_numpy(training_target[:,0]))
+input = Variable(torch.from_numpy(training_motion))
+target = Variable(torch.from_numpy(training_target_motion))
 
 number_of_classes = 8
 net = SLP(number_of_classes)
@@ -176,9 +212,9 @@ optimizer = optim.Adam(net.parameters(), lr=.1)
 """
 Entraînement effectif du réseau
 """
-trained_file = "nn_motion_trained.npz"
+trained_file = "nn_motion_trained_direct.npz"
 if not os.path.isfile(trained_file):
-    max_epoch = 500+1
+    max_epoch = 1000+1
     losses = np.zeros((max_epoch,))
     for epoch in range(max_epoch):
         optimizer.zero_grad()
@@ -195,21 +231,21 @@ if not os.path.isfile(trained_file):
     torch.save(net.state_dict(), trained_file)
     plt.plot(losses)
     plt.title("Losses per epoch")
-    plt.show()
+    #plt.show()
 
 
 """
 Évaluation des résultats
 """
 net.load_state_dict(torch.load(trained_file))
-input = Variable(torch.from_numpy(testing))
-target = Variable(torch.from_numpy(testing_target[:,0]))
+input = Variable(torch.from_numpy(testing_motion))
+target = Variable(torch.from_numpy(testing_target_motion))
 output = net(input.float())
-confusion_matrix = np.zeros((8,8),dtype=np.int32)
+confusion_matrix = np.zeros((8,8), dtype=np.int32)
 
 for i in range(len(output)):
     predict = np.argmax(output.data[i].numpy())
-    truth = testing_target[i,0]
+    truth = testing_target_motion[i]
     confusion_matrix[truth, predict] += 1
     if predict != truth:
         print("{} : guessed {}, was {}".format(i,
@@ -241,8 +277,8 @@ Second apprentissage : styles
 #######################################
 print("Now for style learning")
 
-input = Variable(torch.from_numpy(training))
-target = Variable(torch.from_numpy(training_target[:,1]))
+input = Variable(torch.from_numpy(training_style))
+target = Variable(torch.from_numpy(training_target_style))
 
 number_of_classes = 8
 net = SLP(number_of_classes)
@@ -255,9 +291,9 @@ optimizer = optim.Adam(net.parameters(), lr=.1)
 """
 Entraînement effectif du réseau
 """
-trained_file = "nn_style_trained.npz"
+trained_file = "nn_style_trained_direct.npz"
 if not os.path.isfile(trained_file):
-    max_epoch = 500+1
+    max_epoch = 1000+1
     losses = np.zeros((max_epoch,))
     for epoch in range(max_epoch):
         optimizer.zero_grad()
@@ -274,22 +310,22 @@ if not os.path.isfile(trained_file):
     torch.save(net.state_dict(), trained_file)
     plt.plot(losses)
     plt.title("Losses per epoch")
-    plt.show()
+    #plt.show()
 
 
 """
 Évaluation des résultats
 """
 net.load_state_dict(torch.load(trained_file))
-input = Variable(torch.from_numpy(testing))
-target = Variable(torch.from_numpy(testing_target[:,1]))
+input = Variable(torch.from_numpy(testing_style))
+target = Variable(torch.from_numpy(testing_target_style))
 output = net(input.float())
-confusion_matrix = np.zeros((8,8),dtype=np.int32)
+confusion_matrix = np.zeros((8,8), dtype=np.int32)
 
 for i in range(len(output)):
     predict = np.argmax(output.data[i].numpy())
-    truth = testing_target[i,1]
-    truth_motion = testing_target[i,0]
+    truth = testing_target_style[i]
+    truth_motion = testing_target_style[i]
     confusion_matrix[truth, predict] += 1
     if predict != truth:
         print("{} : guessed {}, was {}+{}".format(i,
