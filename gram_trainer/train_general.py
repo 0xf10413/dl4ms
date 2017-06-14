@@ -1,23 +1,28 @@
 #!/usr/bin/env python3
 import sys, os
+from itertools import chain
 import numpy as np
 import scipy.io as io
-from sklearn import svm
-from sklearn.model_selection import GridSearchCV
-from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import normalize
 import theano
 import theano.tensor as T
 import theano.tensor.fft as TF
 
+import torch
+from torch.autograd import Variable
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
 
 import matplotlib.pyplot as plt
 
 """
 Classe les clips selon le mouvement ou le style
 Utilise une BDD répartie aléatoirement (par "tas" de style ou de mouvement)
-Passe par une SVM
+Passe par un SLP
 """
+if len(sys.argv) < 2:
+    raise ValueError("Missing commandline argument")
 
 sys.path.append('../nn')
 sys.path.append('../synth')
@@ -29,6 +34,8 @@ rng = np.random.RandomState(23455)
 
 print("Loading data")
 Xstyletransfer = np.load('../data/processed/data_styletransfer.npz')['clips']
+Xedin_punching = np.load('../data/processed/data_edin_punching.npz')['clips']
+Xedin_locomotion = np.load('../data/processed/data_edin_locomotion.npz')['clips']
 # Format : motion x style
 styletransfer_classes = np.load('../data/processed/data_styletransfer.npz')['classes']
 styletransfer_styles = [
@@ -41,10 +48,13 @@ styletransfer_motions = [
 
 
 Xstyletransfer = np.swapaxes(Xstyletransfer, 1, 2).astype(theano.config.floatX)
+Xedin_punching = np.swapaxes(Xedin_punching, 1, 2).astype(theano.config.floatX)
+Xedin_locomotion = np.swapaxes(Xedin_locomotion, 1, 2).astype(theano.config.floatX)
 
 preprocess = np.load('../synth/preprocess_core.npz')
 
 Xstyletransfer = (Xstyletransfer - preprocess['Xmean']) / preprocess['Xstd']
+Xedin_punching = (Xedin_punching - preprocess['Xmean']) / preprocess['Xstd']
 
 def create_network(batchsize, window):
     network = create_core(batchsize=batchsize, window=window, dropout=0.0, depooler=lambda x,**kw: x/2, rng=rng)
@@ -54,60 +64,68 @@ def create_network(batchsize, window):
 pairings = [
    (i, Xstyletransfer) for i in range(len(Xstyletransfer))
 ]
+
 timelen = 240
-filename = 'all_grams_fourier.npz'
+filename = 'all_grams_general.npz'
 print("Done loading data")
 
 grams = dict()
+
+def storify(S0):
+    """
+    Transforme le tableau de mouvements selon sys.argv[1]
+    """
+    G = None
+    H = None
+    arg = sys.argv[1]
+
+    if "caché" in arg:
+        H = np.array(network[0](S0).eval())
+    elif "orig" in arg or "direct" in arg:
+        H = S0
+    else:
+        raise ValueError("Invalid argument (could not find either" +
+                "'caché' or 'orig' or 'direct') in " + arg )
+
+    if "gram" in arg:
+        G = to_gram(H)
+    elif "fourier" in arg:
+        G = np.array(TF.rfft(H).eval())
+        if "abs" in arg:
+            realG = G[...,0].copy()
+            imagG = G[...,1].copy()
+            absG = np.abs(realG + imagG*1j)
+            angG = np.angle(realG + imagG*1j)
+            if "phase" in arg:
+                G = np.concatenate((absG, angG))
+            else:
+                G = absG
+    else:
+        raise ValueError("Invalid argument (could not find either" +
+                "'gram' or 'fourier') in " + arg)
+    return G
+
+def to_gram():
+    X = T.tensor3()
+    G = T.sum(X.dimshuffle(0,'x',1,2) * X.dimshuffle(0,1,'x',2), axis=3)
+    return theano.function([X], G)
+to_gram = to_gram()
+network = create_network(1, timelen)
+
 if not os.path.isfile(filename):
-    network = create_network(1, timelen)
     print("Generating {}".format(filename))
     def gram_matrix(X):
         return T.sum(X.dimshuffle(0,'x',1,2) * X.dimshuffle(0,1,'x',2), axis=3)
-    def to_gram():
-        X = T.tensor3()
-        G = T.sum(X.dimshuffle(0,'x',1,2) * X.dimshuffle(0,1,'x',2), axis=3)
-        return theano.function([X], G)
     def implot(X,title=""):
         plt.imshow(X)
         plt.colorbar()
         plt.title(title)
         plt.show()
-    to_gram = to_gram()
 
     for i, db in pairings:
         S = [db[i:i+1]]
         assert S[0].shape[2] == timelen, "Wrong time shape"
-        G = None
-        H = None
-        arg = sys.argv[1]
-
-        if "caché" in arg:
-            H = np.array(network[0](S[0]).eval())
-        elif "orig" in arg or "direct" in arg:
-            H = S[0]
-        else:
-            raise ValueError("Invalid argument (could not find either" +
-                    "'caché' or 'orig' or 'direct') in " + arg )
-
-        if "gram" in arg:
-            G = to_gram(H)
-        elif "fourier" in arg:
-            G = np.array(TF.rfft(H).eval())
-            if "abs" in arg:
-                realG = G[...,0].copy()
-                imagG = G[...,1].copy()
-                absG = np.abs(realG + imagG*1j)
-                angG = np.angle(realG + imagG*1j)
-                if "phase" in arg:
-                    G = np.concatenate((absG, angG))
-                else:
-                    G = absG
-        else:
-            raise ValueError("Invalid argument (could not find either" +
-                    "'gram' or 'fourier') in " + arg)
-
-        grams[str(i)] = G
+        grams[str(i)] = storify(S[0])
         print("Done with matrix {}".format(i))
 
     np.savez(filename, **grams)
@@ -115,12 +133,12 @@ if not os.path.isfile(filename):
 
 C = np.load(filename)
 
-def extract_and_cat(C, indexes):
+def extract_and_cat(C, indexes,ctor=str):
     """
     Extrait les matrices d'indice dans indexes de C,
     puis les applatit et les concatène
     """
-    matrices = [C[str(i)].flatten() for i in indexes]
+    matrices = [C[ctor(i)].flatten() for i in indexes]
     output = np.stack(matrices)
     output = normalize(output)
     return output
@@ -129,7 +147,7 @@ def extract_and_cat(C, indexes):
 Création de l'ensemble de données d'entraînement/test
 et des targets correspondantes, pour les mouvements
 """
-learning_filename = 'gram_motions.npz'
+learning_filename = 'general_motions.npz'
 if not os.path.isfile(learning_filename):
     database = extract_and_cat(C, range(559))
     training = None
@@ -172,7 +190,7 @@ training_target_motion, testing_target_motion = D['training_target'], D['testing
 Création de l'ensemble de données d'entraînement/test
 et des targets correspondantes, pour les styles
 """
-learning_filename = 'gram_styles.npz'
+learning_filename = 'general_styles.npz'
 if not os.path.isfile(learning_filename):
     database = extract_and_cat(C, range(559))
     training = None
@@ -211,6 +229,20 @@ D = np.load(learning_filename)
 training_style, testing_style = D['training'], D['testing']
 training_target_style, testing_target_style = D['training_target'], D['testing_target']
 
+class SLP(nn.Module):
+    """
+    Perceptron à une seule couche
+    La sortie est passée à travers un softlogmax
+    """
+    def __init__(self,output_size):
+        super(SLP, self).__init__()
+        self.fc1 = nn.Linear(training_style.shape[1], output_size)
+        self.logsoftmax = nn.LogSoftmax()
+
+    def forward(self,x):
+        x = self.fc1(x)
+        x = self.logsoftmax(x)
+        return x
 
 #######################################
 """
@@ -218,46 +250,53 @@ Premier apprentissage : mouvements
 """
 #######################################
 
-input = training_motion
-target = training_target_motion
+input = Variable(torch.from_numpy(training_motion))
+target = Variable(torch.from_numpy(training_target_motion))
 
 number_of_classes = 8
-param_grid = [
-        { 'C': [1e-2, 0.1, 1, 10, 100, 1000], 'kernel':['rbf'],
-            'gamma' : [1e-2, 1e-1, 1, 10, 100, 1000],
-        },
-        { 'C': [1e-2, 0.1, 1, 10, 100, 1000], 'kernel':['linear'],
-            },
-        ]
-net = GridSearchCV(svm.SVC(), param_grid, n_jobs=6, verbose=2)
-print("Training a classifier. It's :", net)
-"""
-SVC(C=10, cache_size=200, class_weight=None, coef0=0.0,
-  decision_function_shape=None, degree=3, gamma=2, kernel='rbf',
-  max_iter=-1, probability=False, random_state=None, shrinking=True,
-  tol=0.001, verbose=False)
-Best classifier found. It's SVC(C=1000, cache_size=200, class_weight=None, coef0=0.0,
-  decision_function_shape=None, degree=3, gamma=0.1, kernel='rbf',
-  max_iter=-1, probability=False, random_state=None, shrinking=True,
-  tol=0.001, verbose=False)
-"""
+net = SLP(number_of_classes)
+print("Training with a SLP. Réseau utilisé :", net)
+crit = nn.NLLLoss()
+#optimizer = optim.SGD(net.parameters(), lr=.5)
+#optimizer = optim.SGD(net.parameters(), lr=.01, momentum=.5)
+optimizer = optim.Adam(net.parameters(), lr=.1)
 
 """
-Entraînement effectif du SVM
+Entraînement effectif du réseau
 """
-net.fit(input, target)
-print("Best classifier found. It's", net.best_estimator_)
+trained_file_move = "nn_motion_trained_general.npz"
+if not os.path.isfile(trained_file_move):
+    max_epoch = 500+1
+    losses = np.zeros((max_epoch,))
+    for epoch in range(max_epoch):
+        optimizer.zero_grad()
+
+        output = net(input.float())
+        loss = crit(output, target)
+        loss.backward()
+
+        optimizer.step()
+        #if epoch % (max_epoch // 10) == 0:
+        print("Ending epoch {}, loss was {}".format(epoch, loss.data[0]))
+        losses[epoch] = loss.data[0]
+    print("Now saving...")
+    torch.save(net.state_dict(), trained_file_move)
+    plt.plot(losses)
+    plt.title("Losses per epoch")
+    #plt.show()
+
 
 """
 Évaluation des résultats
 """
-input = testing_motion
-target = testing_target_motion
-output = net.predict(input)
+net.load_state_dict(torch.load(trained_file_move))
+input = Variable(torch.from_numpy(testing_motion))
+target = Variable(torch.from_numpy(testing_target_motion))
+output = net(input.float())
 confusion_matrix = np.zeros((8,8), dtype=np.int32)
 
 for i in range(len(output)):
-    predict = output[i]
+    predict = np.argmax(output.data[i].numpy())
     truth = testing_target_motion[i]
     confusion_matrix[truth, predict] += 1
     if predict != truth:
@@ -265,7 +304,7 @@ for i in range(len(output)):
             styletransfer_motions[predict],
             styletransfer_motions[truth]))
 
-with open('confusion_matrix.csv', 'w+') as f:
+with open('confusion_matrix_general.csv', 'w+') as f:
     f.write("↓ Truth/Predicted →,")
     for cl in styletransfer_motions:
         f.write(cl + ',')
@@ -277,12 +316,11 @@ with open('confusion_matrix.csv', 'w+') as f:
             f.write(',')
         f.write('\n')
 
+print("Confusion matrix written at confusion_matrix_general.csv")
+
 accuracy = sum([confusion_matrix[i,i] for i in range(8)])/np.sum(confusion_matrix)
 
-with open('accuracy'+sys.argv[1]+'.txt','a') as f:
-    print("Accuracy is {:.2f}%".format(accuracy*100), file=f)
-print("Writtent accuracy to accuracy.txt")
-
+print("Accuracy is {:.2f}%".format(accuracy*100))
 
 #######################################
 """
@@ -291,35 +329,53 @@ Second apprentissage : styles
 #######################################
 print("Now for style learning")
 
-input = training_style
-target = training_target_style
+input = Variable(torch.from_numpy(training_style))
+target = Variable(torch.from_numpy(training_target_style))
 
 number_of_classes = 8
-param_grid = [
-        { 'C': [1e-2, 0.1, 1, 10, 100, 1000], 'kernel':['rbf'],
-            'gamma' : [1e-2, 1e-1, 1, 10, 100, 1000],
-        },
-        { 'C': [1e-2, 0.1, 1, 10, 100, 1000], 'kernel':['linear'],
-            },
-        ]
-net = GridSearchCV(svm.SVC(), param_grid, n_jobs=6, verbose=2)
-print("Training a classifier. It's :", net)
+net = SLP(number_of_classes)
+print("Training with a SLP. Réseau utilisé :", net)
+crit = nn.NLLLoss()
+#optimizer = optim.SGD(net.parameters(), lr=.5)
+#optimizer = optim.SGD(net.parameters(), lr=.01, momentum=.5)
+optimizer = optim.Adam(net.parameters(), lr=.1)
 
 """
 Entraînement effectif du réseau
 """
-net.fit(input, target)
+trained_file_style = "nn_style_trained_general.npz"
+if not os.path.isfile(trained_file_style):
+    max_epoch = 500+1
+    losses = np.zeros((max_epoch,))
+    for epoch in range(max_epoch):
+        optimizer.zero_grad()
+
+        output = net(input.float())
+        loss = crit(output, target)
+        loss.backward()
+
+        optimizer.step()
+        #if epoch % (max_epoch // 10) == 0:
+        print("Ending epoch {}, loss was {}".format(epoch, loss.data[0]))
+        losses[epoch] = loss.data[0]
+    print("Now saving...")
+    torch.save(net.state_dict(), trained_file_style)
+    plt.plot(losses)
+    plt.title("Losses per epoch")
+    #plt.show()
+
 
 """
 Évaluation des résultats
 """
-input = testing_style
-target = testing_target_style
-output = net.predict(input)
+net.load_state_dict(torch.load(trained_file_style))
+input = Variable(torch.from_numpy(testing_style))
+target = Variable(torch.from_numpy(testing_target_style))
+output = net(input.float())
 confusion_matrix = np.zeros((8,8), dtype=np.int32)
 
 for i in range(len(output)):
-    predict = output[i]
+    predict = np.argmax(output.data[i].numpy())
     truth = testing_target_style[i]
     truth_motion = testing_target_style[i]
     confusion_matrix[truth, predict] += 1
@@ -329,7 +385,7 @@ for i in range(len(output)):
             styletransfer_styles[truth],
             styletransfer_motions[truth_motion]))
 
-with open('confusion_matrix2.csv', 'w+') as f:
+with open('confusion_matrix2_general.csv', 'w+') as f:
     f.write("↓ Truth/Predicted →,")
     for cl in styletransfer_styles:
         f.write(cl + ',')
@@ -341,10 +397,49 @@ with open('confusion_matrix2.csv', 'w+') as f:
             f.write(',')
         f.write('\n')
 
-print("Confusion matrix written at confusion_matrix2.csv")
+print("Confusion matrix written at confusion_matrix2_general.csv")
 
 accuracy = sum([confusion_matrix[i,i] for i in range(8)])/np.sum(confusion_matrix)
 
-with open('accuracy'+sys.argv[1]+'2.txt','a') as f:
-    print("Accuracy is {:.2f}%".format(accuracy*100), file=f)
-print("Written accuracy to accuracy2.txt")
+print("Accuracy is {:.2f}%".format(accuracy*100))
+
+#######################################
+"""
+Test : identification des mouvements tirés d'une autre BDD
+"""
+#######################################
+net = SLP(number_of_classes)
+net.load_state_dict(torch.load(trained_file_style))
+
+# Edin punching, move
+def get_target_move(ind):
+    if ind in range(0, 30):
+        return "fight_pose"
+    if ind in range(30, 57):
+        return "punching"
+    if ind in range(57, 85):
+        return "kicking"
+    if ind in range(85, 95):
+        return "elbow"
+    return "something else"
+# Edin punching, style
+def get_target_style(_):
+    return "neutral"
+get_target = get_target_style
+db = Xedin_punching
+
+def get_target_motion(_):
+    return "walking"
+get_target = get_target_motion
+db = Xedin_locomotion
+indexes = range(1,200)
+
+A = extract_and_cat([storify([db[i]])
+    for i in range(db.shape[0])],
+    indexes, ctor=int)
+output = net(Variable(torch.from_numpy(A)).float()).data.numpy()
+
+for i, cl in enumerate(np.argmax(output, axis=1)):
+    #print("Thought #{} was {}, was actually {}".
+    print("{},{}".
+            format(styletransfer_motions[cl], get_target(i)))

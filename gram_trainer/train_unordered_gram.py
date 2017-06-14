@@ -90,7 +90,7 @@ class SLP(nn.Module):
     """
     def __init__(self,output_size):
         super(SLP, self).__init__()
-        self.fc1 = nn.Linear(256*256, output_size)
+        self.fc1 = nn.Linear(120*256, output_size)
         self.logsoftmax = nn.LogSoftmax()
 
     def forward(self,x):
