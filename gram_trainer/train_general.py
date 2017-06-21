@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import sys, os
-from itertools import chain
 import numpy as np
 import scipy.io as io
 from sklearn.preprocessing import normalize
@@ -74,13 +73,21 @@ grams = dict()
 def storify(S0):
     """
     Transforme le tableau de mouvements selon sys.argv[1]
+    Attendu : un np.array de dim 3
     """
     G = None
     H = None
     arg = sys.argv[1]
+    if type(S0) is not type(np.array(tuple())):
+        raise ValueError("Can only deal with np.array, got {}".
+                format(type(S0)))
+    if S0.ndim != 3:
+        raise ValueError(
+                "Can only deal with np.array of dim 3, got {} (shape {})".
+                format(S0.ndim, S0.shape))
 
     if "caché" in arg:
-        H = np.array(network[0](S0).eval())
+        H = through_encoder(S0)
     elif "orig" in arg or "direct" in arg:
         H = S0
     else:
@@ -89,8 +96,10 @@ def storify(S0):
 
     if "gram" in arg:
         G = to_gram(H)
+    elif "nothing" in arg:
+        G = H
     elif "fourier" in arg:
-        G = np.array(TF.rfft(H).eval())
+        G = to_fft(H)
         if "abs" in arg:
             realG = G[...,0].copy()
             imagG = G[...,1].copy()
@@ -102,7 +111,7 @@ def storify(S0):
                 G = absG
     else:
         raise ValueError("Invalid argument (could not find either" +
-                "'gram' or 'fourier') in " + arg)
+                "'gram' or 'fourier' or 'nothing') in " + arg)
     return G
 
 def to_gram():
@@ -110,7 +119,20 @@ def to_gram():
     G = T.sum(X.dimshuffle(0,'x',1,2) * X.dimshuffle(0,1,'x',2), axis=3)
     return theano.function([X], G)
 to_gram = to_gram()
+
 network = create_network(1, timelen)
+
+def through_encoder():
+    X = T.tensor3()
+    H = network[0](X)
+    return theano.function([X], H)
+through_encoder = through_encoder()
+
+def to_fft():
+    H = T.tensor3()
+    G = TF.rfft(H)
+    return theano.function([H], G)
+to_fft = to_fft()
 
 if not os.path.isfile(filename):
     print("Generating {}".format(filename))
@@ -266,7 +288,7 @@ Entraînement effectif du réseau
 """
 trained_file_move = "nn_motion_trained_general.npz"
 if not os.path.isfile(trained_file_move):
-    max_epoch = 500+1
+    max_epoch = 5+1
     losses = np.zeros((max_epoch,))
     for epoch in range(max_epoch):
         optimizer.zero_grad()
@@ -345,7 +367,7 @@ Entraînement effectif du réseau
 """
 trained_file_style = "nn_style_trained_general.npz"
 if not os.path.isfile(trained_file_style):
-    max_epoch = 500+1
+    max_epoch = 5+1
     losses = np.zeros((max_epoch,))
     for epoch in range(max_epoch):
         optimizer.zero_grad()
@@ -409,7 +431,7 @@ Test : identification des mouvements tirés d'une autre BDD
 """
 #######################################
 net = SLP(number_of_classes)
-net.load_state_dict(torch.load(trained_file_style))
+net.load_state_dict(torch.load(trained_file_move))
 
 # Edin punching, move
 def get_target_move(ind):
@@ -427,15 +449,42 @@ def get_target_style(_):
     return "neutral"
 get_target = get_target_style
 db = Xedin_punching
+indexes = range(1,200)
 
+# Edin locomotion
 def get_target_motion(_):
     return "walking"
 get_target = get_target_motion
 db = Xedin_locomotion
 indexes = range(1,200)
 
-A = extract_and_cat([storify([db[i]])
-    for i in range(db.shape[0])],
+## Already "Gramified" data
+#indexes = [(230,321),(234, 39),(220,148),(225,-41)]
+#db = np.load("../synth/X_styletransfer_{}_{}.npz".
+#        format(*indexes[0]))['Xtrsf']
+#for i,j in indexes[1:]:
+#    db2 = np.load("../synth/X_styletransfer_{}_{}.npz".
+#        format(i,j))['Xtrsf']
+#    db = np.concatenate((db, db2))
+#db = db.astype(theano.config.floatX)
+#db = (db - preprocess['Xmean']) /preprocess['Xstd']
+#
+#db = np.concatenate(np.split(db, 2, axis=2), axis=0)
+#indexes = range(db.shape[0])
+#def get_target_style(index):
+#    if i <= 1:
+#        return "old"
+#    if i <= 3:
+#        return "angry"
+#    if i <= 5:
+#        return "depressed"
+#    if i <= 7:
+#        return "strutting"
+#    return "something else"
+#get_target = get_target_motion
+
+to_extract = [storify(db[i:i+1]) for i in range(db.shape[0])]
+A = extract_and_cat(to_extract,
     indexes, ctor=int)
 output = net(Variable(torch.from_numpy(A)).float()).data.numpy()
 
