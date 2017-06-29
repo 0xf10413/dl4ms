@@ -401,9 +401,14 @@ if __name__ == "__main__":
     Xstyletransfer = np.swapaxes(Xstyletransfer, 1, 2).astype(theano.config.floatX)
     Xedin_punching = np.load('../data/processed/data_edin_punching.npz')['clips']
     Xedin_punching = np.swapaxes(Xedin_punching, 1, 2).astype(theano.config.floatX)
+    Xedin_locomotion = np.load('../data/processed/data_edin_locomotion.npz')['clips']
+    Xedin_locomotion = np.swapaxes(Xedin_locomotion, 1, 2).astype(theano.config.floatX)
+
     preprocess = np.load('../synth/preprocess_core.npz')
     Xstyletransfer = (Xstyletransfer - preprocess['Xmean']) / preprocess['Xstd']
     Xedin_punching = (Xedin_punching - preprocess['Xmean']) / preprocess['Xstd']
+    Xedin_locomotion = (Xedin_locomotion - preprocess['Xmean']) / preprocess['Xstd']
+
     arg = sys.argv[1]
     pairings = [(i, Xstyletransfer) for i in range(len(Xstyletransfer))]
     how_to = lambda filename: generate_gram_samples(pairings, arg, filename)
@@ -447,6 +452,7 @@ if __name__ == "__main__":
     how_to = lambda f: write_accuracy(svm_styles, S, f)
     Cacher(arg).retrieve("svm_styles_accuracy", how_to, format='txt')
 
+    print("=> Now checking on edin_punching")
     print("=> Fetching new data")
     pairings = [(i, Xedin_punching) for i in range(100)]
     how_to = lambda filename: generate_gram_samples(pairings, arg, filename)
@@ -488,3 +494,33 @@ if __name__ == "__main__":
         styletransfer_styles, get_edin_punching_style), format="csv"))
     print(Cacher(arg).retrieve("edin_punching_slp_motion", how_to(slp_motions,
         styletransfer_motions, get_edin_punching_move), format="csv"))
+
+
+    print("=> Now checking on edin_locomotion")
+    print("=> Fetching new data")
+    pairings = [(i, Xedin_locomotion) for i in range(100)]
+    how_to = lambda filename: generate_gram_samples(pairings, arg, filename)
+    C = Cacher(arg).retrieve("edin_locomotion", how_to)
+
+    print("=> Normalizing new data")
+    how_to = lambda filename: generate_normalized_gram(C['grams'], norm, filename)
+    C = Cacher(arg).retrieve("edin_locomotion_normalized", how_to)
+
+    print("=> Finalizing samples")
+    how_to = lambda filename: generate_external_samples(C['grams'], filename)
+    C = Cacher(arg).retrieve("edin_locomotion_final", how_to)
+
+    how_to = lambda clf, cls, exp: lambda f:to_csv(clf, C, cls, exp, f)
+    def get_edin_locomotion_move(_):
+        return "walking"
+    def get_edin_locomotion_style(_):
+        return "neutral"
+    print(Cacher(arg).retrieve("edin_locomotion_svm_style", how_to(svm_styles,
+         styletransfer_styles, get_edin_locomotion_style), format="csv"))
+    print(Cacher(arg).retrieve("edin_locomotion_svm_motion", how_to(svm_motions,
+        styletransfer_motions, get_edin_locomotion_move), format="csv"))
+    print(Cacher(arg).retrieve("edin_locomotion_slp_style", how_to(slp_styles,
+        styletransfer_styles, get_edin_locomotion_style), format="csv"))
+    print(Cacher(arg).retrieve("edin_locomotion_slp_motion", how_to(slp_motions,
+        styletransfer_motions, get_edin_locomotion_move), format="csv"))
+

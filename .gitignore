@@ -9,3 +9,4 @@ data/processed/cmu
 data/processed/edin*
 data/processed/hdm05
 data/processed/mhad
+gram_trainer/cache
