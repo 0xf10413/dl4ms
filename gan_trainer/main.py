@@ -34,14 +34,14 @@ class GANGenerator(object):
                 shape=in_shape,
                 input_var=self.Z)
         self.layers['hidden1'] = lasagne.layers.DenseLayer(
-                self.layers['in'], num_units=in_shape[1],
-                nonlinearity=lasagne.nonlinearities.tanh,
+                self.layers['in'], num_units=in_shape[1]*2,
+                #nonlinearity=lasagne.nonlinearities.tanh,
                 W=lasagne.init.GlorotUniform(),
                 b=lasagne.init.Constant(0),
                 )
         self.layers['hidden2'] = lasagne.layers.DenseLayer(
                 self.layers['hidden1'], num_units=out_size,
-                nonlinearity=lasagne.nonlinearities.tanh,
+                nonlinearity=lasagne.nonlinearities.ScaledTanh(scale_out=5),
                 W=lasagne.init.GlorotUniform(),
                 b=lasagne.init.Constant(0),
                 )
@@ -69,17 +69,23 @@ class GANDiscriminator(object):
                 input_var=self.X)
         self.layers['hidden1'] = lasagne.layers.DenseLayer(
                 self.layers['in'], num_units=in_shape[1],
-                nonlinearity=lasagne.nonlinearities.tanh,
+                nonlinearity=lasagne.nonlinearities.sigmoid,
                 W=lasagne.init.GlorotUniform(),
                 b=lasagne.init.Constant(0),
                 )
         self.layers['hidden2'] = lasagne.layers.DenseLayer(
-                self.layers['hidden1'], num_units=out_shape,
+                self.layers['hidden1'], num_units=in_shape[1],
                 nonlinearity=lasagne.nonlinearities.tanh,
                 W=lasagne.init.GlorotUniform(),
                 b=lasagne.init.Constant(0),
                 )
-        self.layers['out'] = self.layers['hidden2']
+        self.layers['hidden3'] = lasagne.layers.DenseLayer(
+                self.layers['hidden2'], num_units=out_shape,
+                nonlinearity=lasagne.nonlinearities.tanh,
+                W=lasagne.init.GlorotUniform(),
+                b=lasagne.init.Constant(0),
+                )
+        self.layers['out'] = self.layers['hidden3']
         self.params = lasagne.layers.get_all_params(self.layers['out'])
         self.output = lasagne.layers.get_output(self.layers['out'])
         self.predict = theano.function(
@@ -95,17 +101,23 @@ class GANDiscriminator(object):
                 )
         self.layers2['hidden1'] = lasagne.layers.DenseLayer(
                 self.layers2['in'], num_units=in_shape[1],
-                nonlinearity=lasagne.nonlinearities.tanh,
+                nonlinearity=lasagne.nonlinearities.sigmoid,
                 W=self.layers['hidden1'].W,
                 b=self.layers['hidden1'].b,
                 )
         self.layers2['hidden2'] = lasagne.layers.DenseLayer(
-                self.layers2['hidden1'], num_units=out_shape,
+                self.layers2['hidden1'], num_units=in_shape[1],
                 nonlinearity=lasagne.nonlinearities.tanh,
                 W=self.layers['hidden2'].W,
                 b=self.layers['hidden2'].b,
                 )
-        self.layers2['out'] = self.layers2['hidden2']
+        self.layers2['hidden3'] = lasagne.layers.DenseLayer(
+                self.layers2['hidden2'], num_units=out_shape,
+                nonlinearity=lasagne.nonlinearities.tanh,
+                W=self.layers['hidden3'].W,
+                b=self.layers['hidden3'].b,
+                )
+        self.layers2['out'] = self.layers2['hidden3']
         self.params2 = lasagne.layers.get_all_params(self.layers2['out'])
         self.output2 = lasagne.layers.get_output(self.layers2['out'])
         self.predict2 = theano.function(
@@ -116,7 +128,7 @@ class GANDiscriminator(object):
 
 class SimpleGAN(object):
     def __init__(self):
-        self.z_size = 20
+        self.z_size = 50
         self.x_size = 1
         self.G = GANGenerator((None, self.z_size), self.x_size)
         print("Generator ready")
@@ -125,23 +137,30 @@ class SimpleGAN(object):
 
     def train(self):
         ## Fonction d'entraînement du générateur
-        lr = 4e-2
-        batchsize = 10
+        lr_d = 5e-1
+        lr_g = lr_d/80
+        batchsize = 50
         max_epochs = 501
         d_steps = 4
+
+        true_mean = 2
+        true_scale = .1
 
         ## Objectifs
         prediction_d = self.D.output # Prediction sur X
         prediction_dg = self.D.output2 # Prediction sur D(Z)
         params_d = self.D.params
-        params_g = self.D.params2
-        #params_g = self.G.params
-        obj_d = T.mean(T.log(prediction_d) + T.log(1 - prediction_dg))
-        obj_g = T.mean(T.log(prediction_dg))
+        #params_g = self.D.params2
+        params_g = self.G.params
+        tmp_d1 = (prediction_d+1)/2
+        tmp_d2 = 1 - (prediction_dg+1)/2
+        obj_d = T.mean(T.log(tmp_d1)) + T.mean(T.log(tmp_d2))
+        tmp_g = (prediction_dg+1)/2
+        obj_g = T.mean(T.log(tmp_g))
 
         ## updates
-        updates_d = lasagne.updates.adam(-obj_d, params_d, lr)
-        updates_g = lasagne.updates.adam(-obj_g, params_g, lr)
+        updates_d = lasagne.updates.sgd(-obj_d, params_d, lr_d)
+        updates_g = lasagne.updates.sgd(-obj_g, params_g, lr_g)
         train_g = theano.function([self.G.Z],
                 obj_g,
                 updates=updates_g,
@@ -165,7 +184,6 @@ class SimpleGAN(object):
 
         losses_d = np.zeros(max_epochs)
         losses_g = np.zeros(max_epochs)
-        anims = list()
 
         state = None
         def draw_state(title, ii, samples=1000):
@@ -174,7 +192,7 @@ class SimpleGAN(object):
             opinion2 = np.zeros(samples)
             generate = np.zeros(samples)
             space = np.linspace(-5, 5, samples)
-            true_dist = scipy.stats.norm.pdf(space)
+            true_dist = scipy.stats.norm.pdf(space, loc=true_mean, scale=true_scale)
             for i in range(samples):
                 opinion[i] = out_d(space[np.newaxis, i:i+1])
                 generate[i] = np.mean(out_g(np.random.rand(batchsize, self.z_size)), axis=0)
@@ -187,24 +205,24 @@ class SimpleGAN(object):
                 state['11'] = plt.plot(space, opinion, label='over an interval')
                 state['12'] = plt.plot(generate, opinion2, 'x', label='over G')
                 state['13'] = plt.plot(space, true_dist, label='true distribution')
-                plt.ylim(-1,1)
+                plt.ylim(-1,1.5)
                 plt.legend()
                 plt.title(title)
 
                 state['ax'] = plt.subplot(2,1,2)
-                state['21'] = plt.plot(losses_d, label="Loss D")
-                state['22'] = plt.plot(losses_g, label="Loss G")
+                state['21'] = plt.plot(losses_d, label="Objective D")
+                state['22'] = plt.plot(losses_g, label="Objective G")
                 state['2a'] = plt.gca()
-                plt.title("Losses")
+                plt.title("Objectives")
                 plt.legend()
             else:
                 state['11'][0].set_ydata(opinion)
                 state['12'][0].set_xdata(generate)
                 state['12'][0].set_ydata(opinion2)
                 state['13'][0].set_ydata(true_dist)
-                state['21'][0].set_ydata(losses_g)
+                state['21'][0].set_ydata(losses_d)
                 state['21'][0].set_xdata(range(max_epochs))
-                state['22'][0].set_ydata(losses_d)
+                state['22'][0].set_ydata(losses_g)
                 state['22'][0].set_xdata(range(max_epochs))
                 state['2a'].relim()
                 state['2a'].autoscale_view()
@@ -216,11 +234,14 @@ class SimpleGAN(object):
         for i in range(max_epochs):
             losses_d_t = np.zeros(d_steps)
             for j in range(d_steps):
-                x = np.random.normal(0, 1, (batchsize, self.x_size))
+                x = np.random.normal(true_mean, true_scale, (batchsize, self.x_size))
                 z = 5*np.random.rand(batchsize, self.z_size)
+                #print("Losses Dg", out_dg(z))
+                #print("Losses D", out_d(x))
                 losses_d_t[j] = train_d(z, x)
             losses_d[i] = np.mean(losses_d_t)
             z = 5*np.random.rand(batchsize, self.z_size)
+            #print("Losses G", out_g(z))
             losses_g[i] = train_g(z)
             draw_state("Epoch {}".format(i), i)
             if i % 100 == 0:
