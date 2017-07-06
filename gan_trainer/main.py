@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-import sys
+import os
+os.environ['THEANO_FLAGS'] = (
+    #'device=cuda'
+    'device=cpu'
+)
 
 import numpy as np
-import scipy
-import matplotlib.pyplot as plt
-from matplotlib import animation
-import theano
-import theano.tensor as T
-from theano.compile.nanguardmode import NanGuardMode
 import lasagne
 
 from simplegan import SimpleGAN
+#from dcgan import DCGAN
 
-np.random.seed(43)
+rng = np.random.RandomState(43)
+lasagne.random.set_rng(rng)
 
 ####################
 ## Modèle de GAN ##
@@ -42,13 +42,12 @@ def norm_unnorm(database):
 ####################
 
 if __name__ == "__main__":
-    Xstyletransfer = np.load('../data/processed/data_styletransfer.npz')['clips']
-    Xstyletransfer = np.swapaxes(Xstyletransfer, 1, 2).astype(theano.config.floatX)
-    preprocess = np.load('../synth/preprocess_core.npz')
-    Xstyletransfer = (Xstyletransfer - preprocess['Xmean']) / preprocess['Xstd']
+    #Xstyletransfer = np.load('../data/processed/data_styletransfer.npz')['clips']
+    #Xstyletransfer = np.swapaxes(Xstyletransfer, 1, 2).astype(theano.config.floatX)
+    #preprocess = np.load('../synth/preprocess_core.npz')
+    #Xstyletransfer = (Xstyletransfer - preprocess['Xmean']) / preprocess['Xstd']
 
-    pairings = [(i, Xstyletransfer) for i in range(len(Xstyletransfer))]
-
+    #pairings = [(i, Xstyletransfer) for i in range(len(Xstyletransfer))]
 
     net = SimpleGAN(0, .1)
-    net.train()
+    net.train(rng)
