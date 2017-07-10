@@ -31,14 +31,12 @@ import lasagne.init as lin
 class SimpleGenerator(object):
     """
     Générateur simple, à deux couches FC+tanh
-    Si l'input est de taille z, FC1 est de taille z//2
     """
-    def __init__(self, in_shape, out_size):
+    def __init__(self, in_size, out_size):
         ## Construction du générateur
-        ## in_shape : batch_size x source size
         self.layers = dict()
         self.layers['in'] = ll.InputLayer(
-                shape=in_shape,
+                shape=(None, in_size),
                 )
         self.layers['hidden1'] = ll.DenseLayer(
                 self.layers['in'], num_units=10,
@@ -60,14 +58,13 @@ class SimpleDiscriminator(object):
     Discrimineur simple, à trois couches FC+tanh
     Si l'input est de taille x, FC1 est de taille x*10 et FC2 x*20
     """
-    def __init__(self, in_shape, out_shape, G):
+    def __init__(self, in_shape, out_shape):
         ## Construction du générateur
         ## in_shape : batch_size x flatten_size
-        ## G : générateur
         # Première version : évaluation sur X
         self.layers = dict()
         self.layers['in'] = ll.InputLayer(
-                shape=in_shape,
+                shape=(None, in_shape),
                 )
         self.layers['hidden1'] = ll.DenseLayer(
                 self.layers['in'], num_units=10,
@@ -90,28 +87,66 @@ class SimpleDiscriminator(object):
         self.layers['out'] = self.layers['hidden3']
         self.params = ll.get_all_params(self.layers['out'], trainable=True)
 
+class Distribution(object):
+    def __init__(self, rng, sample_size):
+        self.rng = rng
+        self.sample_size = sample_size
+        self._pdf = None
+
+    def sample(self, sample_size):
+        raise NotImplementedError("Did not extend base method")
+
+    def pdf(self, interval):
+        if self._pdf is None:
+            raise NotImplementedError("No known pdf for this distribution")
+        return self._pdf(interval)
+
+class GaussianDistribution(Distribution):
+    def __init__(self, rng, sample_size, *, mean, scale):
+        super().__init__(rng, sample_size)
+        self.mean = mean
+        self.scale = scale
+        self._pdf = lambda x: scipy.stats.norm.pdf(x, loc=self.mean,
+                scale=self.scale).astype(config.floatX)
+
+    def sample(self, sample_size):
+        return rng.normal(loc=self.mean, scale=self.scale,
+                size=sample_size).astype(config.floatX)
+
+class UniformDistribution(Distribution):
+    def __init__(self, rng, sample_size, *, a, b):
+        super().__init__(rng, sample_size)
+        assert a != b
+        self.min = min(a, b)
+        self.max = max(a, b)
+        self._pdf = lambda x: 1/(self.max-self.min) if self.min <= x <= self.max else 0
+        self._pdf = np.vectorize(self._pdf)
+
+    def sample(self, sample_size):
+        return rng.uniform(low=self.min, high=self.max,
+                size=sample_size).astype(config.floatX)
+
+
 class SimpleGAN(object):
     """
-    Un simple GAN, qui tente d'apprendre une gaussienne
+    Un simple GAN, sans amélioration spécifique
     """
-    def __init__(self, true_mean, true_scale):
-        self.true_mean = true_mean
-        self.true_scale = true_scale
-        self.z_size = 10
-        self.x_size = 1
+    def __init__(self, *, Generator, Discriminator, TrueDistribution, Inspiration):
+        self.G = Generator
+        self.D = Discriminator
+        self.X = TrueDistribution
+        self.Z = Inspiration
 
+        self.train_d = None
+        self.train_g = None
+        self.generate_x = None
+        self.score_x = None
 
-        self.G = SimpleGenerator((None, self.z_size), self.x_size)
-        print("Generator ready")
-        self.D = SimpleDiscriminator((None, self.x_size), 1, self.G)
-        print("Discriminator ready")
-
-    def train(self, rng, *, batchsize=50, max_epochs=501, d_steps=10, g_steps=1):
+    def prepare_training(self):
+        """
+        Compilation des fonctions d'entraînement
+        """
         ## Fonction d'entraînement du générateur
-        # Paramètres supplémentaires d'apprentissage
-        z_min = 0
-        z_max = 1
-
         # Variables d'input
         z = T.tensor(dtype=config.floatX, broadcastable=(False, False))
         x = T.tensor(dtype=config.floatX, broadcastable=(False, False))
@@ -137,33 +172,35 @@ class SimpleGAN(object):
 
         ## Compilation des fonctions d'entraînement
         print("Now compiling")
-        train_g = theano.function(
+        self.train_g = theano.function(
             inputs=[z, lr_g],
             outputs=[obj_g],
             updates=updates_g,
             #mode=NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True)
         )
 
-        train_d = theano.function(
+        self.train_d = theano.function(
             inputs=[z, x, lr_d],
             outputs=[obj_d],
             updates=updates_d,
             #mode=NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True)
         )
 
-        predict_x = theano.function(
+        self.generate_x = theano.function(
             inputs=[z],
             outputs=[ll.get_output(self.G.layers['out'], inputs=z, deterministic=True)],
             #mode=NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True)
         )
 
-        score_x = theano.function(
+        self.score_x = theano.function(
             inputs=[x],
             outputs=[ll.get_output(self.D.layers['out'], inputs=x, deterministic=True)],
             #mode=NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True)
         )
 
-
+    def train(self, rng, *, batchsize=50, max_epochs=501, d_steps=10, g_steps=1):
+        if not all([self.train_d, self.train_g, self.generate_x, self.score_x]):
+            self.prepare_training()
         print("Now training")
         losses_d = np.zeros(max_epochs)
         losses_g = np.zeros(max_epochs)
@@ -175,7 +212,8 @@ class SimpleGAN(object):
         n_samples = 1000
         x_axis = np.linspace(x_range[0], x_range[1], n_samples)
 
-        true_dist = scipy.stats.norm.pdf(x_axis, loc=self.true_mean, scale=self.true_scale)
+        true_dist = None
+        true_dist = self.X.pdf(x_axis)
         dist_norm = np.max(true_dist)
         true_dist = true_dist / dist_norm  # normalization
 
@@ -222,20 +260,14 @@ class SimpleGAN(object):
                 print("epoch {} / {}...".format(i + 1, max_epochs))
 
                 # train discriminator
-                x = rng.normal(loc=self.true_mean, scale=self.true_scale,
-                               size=(d_steps, batchsize, self.x_size)
-                               ).astype(config.floatX)
-                z = rng.uniform(low=z_min, high=z_max,
-                                size=(d_steps, batchsize, self.z_size)
-                                ).astype(config.floatX)
-                d_objs[i] = np.mean([train_d(z[j], x[j], lr_d)
+                x = self.X.sample((d_steps, batchsize, self.X.sample_size))
+                z = self.Z.sample((d_steps, batchsize, self.Z.sample_size))
+                d_objs[i] = np.mean([self.train_d(z[j], x[j], lr_d)
                                      for j in range(d_steps)])
 
                 # train generator
-                z = rng.uniform(low=z_min, high=z_max,
-                                size=(g_steps, batchsize, self.z_size)
-                                ).astype(config.floatX)
-                g_objs[i] = np.mean([train_g(z[j], lr_g)
+                z = self.Z.sample((g_steps, batchsize, self.Z.sample_size))
+                g_objs[i] = np.mean([self.train_g(z[j], lr_g)
                                      for j in range(g_steps)])
 
                 # plot indicators
@@ -248,13 +280,11 @@ class SimpleGAN(object):
                 sub[1, 0].autoscale_view()
 
                 x = x_axis[:, None].astype(config.floatX)
-                scores = score_x(x)[0]
+                scores = self.score_x(x)[0]
                 curves['d_score'].set_ydata(scores)
 
-                z = rng.uniform(low=z_min, high=z_max,
-                                size=(n_samples * 10, self.z_size)
-                                ).astype(config.floatX)
-                fake_samples = predict_x(z)[0]
+                z = self.Z.sample((10*n_samples, self.Z.sample_size))
+                fake_samples = self.generate_x(z)[0]
                 fake_dist = np.histogram(fake_samples,
                                          bins=n_samples - 1, range=x_range,
                                          density=True)[0]
@@ -285,5 +315,13 @@ if __name__ == "__main__":
     rng = np.random.RandomState(43)
     lasagne.random.set_rng(rng)
 
-    net = SimpleGAN(0, .1)
+    z_size = 50
+    x_size = 1
+
+    G = SimpleGenerator(z_size, x_size)
+    D = SimpleDiscriminator(x_size, 1)
+    X = GaussianDistribution(rng, x_size, mean=0, scale=.2)
+    Z = UniformDistribution(rng, z_size, a=-1, b=1)
+
+    net = SimpleGAN(Generator=G, Discriminator=D, TrueDistribution=X, Inspiration=Z)
     net.train(rng)
