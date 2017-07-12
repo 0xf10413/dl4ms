@@ -27,6 +27,7 @@ import lasagne.layers as ll
 import lasagne.nonlinearities as lnl
 import lasagne.init as lin
 
+from distributions import GaussianDistribution, UniformDistribution
 
 class SimpleGenerator(object):
     """
@@ -86,45 +87,6 @@ class SimpleDiscriminator(object):
                 )
         self.layers['out'] = self.layers['hidden3']
         self.params = ll.get_all_params(self.layers['out'], trainable=True)
-
-class Distribution(object):
-    def __init__(self, rng, sample_size):
-        self.rng = rng
-        self.sample_size = sample_size
-        self._pdf = None
-
-    def sample(self, sample_size):
-        raise NotImplementedError("Did not extend base method")
-
-    def pdf(self, interval):
-        if self._pdf is None:
-            raise NotImplementedError("No known pdf for this distribution")
-        return self._pdf(interval)
-
-class GaussianDistribution(Distribution):
-    def __init__(self, rng, sample_size, *, mean, scale):
-        super().__init__(rng, sample_size)
-        self.mean = mean
-        self.scale = scale
-        self._pdf = lambda x: scipy.stats.norm.pdf(x, loc=self.mean,
-                scale=self.scale).astype(config.floatX)
-
-    def sample(self, sample_size):
-        return rng.normal(loc=self.mean, scale=self.scale,
-                size=sample_size).astype(config.floatX)
-
-class UniformDistribution(Distribution):
-    def __init__(self, rng, sample_size, *, a, b):
-        super().__init__(rng, sample_size)
-        assert a != b
-        self.min = min(a, b)
-        self.max = max(a, b)
-        self._pdf = lambda x: 1/(self.max-self.min) if self.min <= x <= self.max else 0
-        self._pdf = np.vectorize(self._pdf)
-
-    def sample(self, sample_size):
-        return rng.uniform(low=self.min, high=self.max,
-                size=sample_size).astype(config.floatX)
 
 
 class SimpleGAN(object):
@@ -204,6 +166,7 @@ class SimpleGAN(object):
         print("Now training")
         losses_d = np.zeros(max_epochs)
         losses_g = np.zeros(max_epochs)
+        l1_err = np.zeros(max_epochs)
 
         # Figure setup
         fig, sub = plt.subplots(nrows=2, ncols=1, squeeze=False)
@@ -231,7 +194,7 @@ class SimpleGAN(object):
         curves['g_dist'] = sub[0, 0].plot(
             fake_bins, fake_dist, label='G estimation')[0]
         curves['d_score'] = sub[0, 0].plot(
-            x_axis, np.repeat(0, n_samples), label='D opinion')[0]
+            x_axis, np.repeat(0, n_samples), label='D opinion (normed)')[0]
         sub[0, 0].legend()
 
         sub[1, 0].set_title("Objectives")
@@ -240,12 +203,15 @@ class SimpleGAN(object):
             range(max_epochs), np.repeat(0, max_epochs), label="Objective D")[0]
         curves['g_obj'] = sub[1, 0].plot(
             range(max_epochs), np.repeat(0, max_epochs), label="Objective G")[0]
+        curves['l1_err'] = sub[1, 0].plot(
+            range(max_epochs), np.repeat(0, max_epochs), label="L1 error")[0]
         sub[1, 0].legend()
 
         plt.ion()
         plt.show()
         plt.draw()
         plt.pause(.01)
+        true_dist = None
 
         writer = animation.FFMpegWriter()
         with writer.saving(fig, 'plot.mp4', dpi=300):
@@ -257,7 +223,7 @@ class SimpleGAN(object):
                 lr_d = 1e-3
                 lr_g = lr_d
 
-                print("epoch {} / {}...".format(i + 1, max_epochs))
+                print("epoch {} / {}...".format(i + 1, max_epochs), end="\r")
 
                 # train discriminator
                 x = self.X.sample((d_steps, batchsize, self.X.sample_size))
@@ -281,6 +247,7 @@ class SimpleGAN(object):
 
                 x = x_axis[:, None].astype(config.floatX)
                 scores = self.score_x(x)[0]
+                scores = (scores - np.min(scores)) / np.ptp(scores)  # normalization
                 curves['d_score'].set_ydata(scores)
 
                 z = self.Z.sample((10*n_samples, self.Z.sample_size))
@@ -289,8 +256,15 @@ class SimpleGAN(object):
                                          bins=n_samples - 1, range=x_range,
                                          density=True)[0]
                 fake_dist = np.repeat(fake_dist, 2)
+                dist_norm = np.max(fake_dist)
                 fake_dist = fake_dist / dist_norm
                 curves['g_dist'].set_ydata(fake_dist)
+
+                if true_dist is None:
+                    true_dist = self.X.pdf(np.linspace(*x_range, len(fake_dist)))
+                    true_dist /= np.max(true_dist)
+                l1_err[i] = np.sum(np.abs(fake_dist-true_dist))/len(fake_dist)*10
+                curves['l1_err'].set_ydata(l1_err)
 
                 # write to video
                 writer.grab_frame()
@@ -301,6 +275,7 @@ class SimpleGAN(object):
 
         plt.ioff()
         plt.show()
+        print()
 
 if __name__ == "__main__":
     # Test rapide de l'entraînement
@@ -315,7 +290,7 @@ if __name__ == "__main__":
     rng = np.random.RandomState(43)
     lasagne.random.set_rng(rng)
 
-    z_size = 50
+    z_size = 5
     x_size = 1
 
     G = SimpleGenerator(z_size, x_size)
