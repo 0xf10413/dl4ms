@@ -4,6 +4,7 @@ Implémentation des GANs sur la génération de mouvements humains
 """
 import os
 import sys
+from copy import copy
 
 import numpy as np
 import scipy
@@ -31,6 +32,7 @@ sys.path.append("../synth")
 sys.path.append("../nn")
 from network import create_core
 from AnimationPlot import animation_plot
+from constraints import joint_lengths
 
 class DL4MSLayer(ll.Layer):
     def __init__(self, incoming, batch_size, window=240, **kwargs):
@@ -82,21 +84,33 @@ if __name__ == "__main__":
     srng = RandomStreams(seed=rng.randint(0, np.iinfo(np.uint32).max))
     lasagne.random.set_rng(rng)
 
-    batch_size = 1
+    batch_size = 50
     filter_size = 25
-    z_shape = (batch_size, 256)
+    z_shape = (batch_size, 100)
     x_shape = (batch_size, 73, 240)
 
     print("...loading motion data")
     Xedin_locomotion = np.load('../data/processed/data_edin_locomotion.npz')['clips']
-    Xedin_locomotion = np.swapaxes(Xedin_locomotion, 1, 2).astype(theano.config.floatX)
+    Xhdm05 = np.load('../data/processed/data_hdm05.npz')['clips']
+    Xcmu = np.load('../data/processed/data_cmu.npz')['clips']
+    Xmhad = np.load('../data/processed/data_mhad.npz')['clips']
+    Xstyletransfer = np.load('../data/processed/data_styletransfer.npz')['clips']
+    Xedin_xsens = np.load('../data/processed/data_edin_xsens.npz')['clips']
+    Xedin_misc = np.load('../data/processed/data_edin_misc.npz')['clips']
+    Xedin_punching = np.load('../data/processed/data_edin_punching.npz')['clips']
+
+    X_train = np.concatenate([Xcmu, Xhdm05, Xmhad, Xstyletransfer, Xedin_locomotion, Xedin_xsens, Xedin_misc, Xedin_punching], axis=0)
+    #X_train = np.concatenate([Xedin_locomotion, Xhdm05], axis=0)
+    X_train = np.swapaxes(X_train, 1, 2).astype(theano.config.floatX)
 
     preprocess = np.load('../synth/preprocess_core.npz')
-    Xedin_locomotion = (Xedin_locomotion - preprocess['Xmean']) / preprocess['Xstd']
+    denorm = lambda x : x * preprocess['Xstd'] + preprocess['Xmean']
+    norm = lambda x : (x - preprocess['Xmean']) / preprocess['Xstd']
 
-    X_train = Xedin_locomotion
+    X_train = norm(X_train)
 
     def pick_x(nb_samples=batch_size):
+        assert nb_samples < len(X_train), "Not enough samples in pick_x"
         I = np.arange(len(X_train))
         rng.shuffle(I)
         return X_train[I[:nb_samples]].astype(config.floatX)
@@ -104,12 +118,20 @@ if __name__ == "__main__":
     z_mean = 0
     z_std = 10
 
-    def pick_z(nb_samples=batch_size):
+    def pick_z_norm(nb_samples=batch_size):
         return rng.normal(
                 z_mean,
                 z_std,
                 (nb_samples, z_shape[1]),
                 ).astype(config.floatX)
+
+    def pick_z_unif(nb_samples=batch_size):
+        return rng.uniform(
+                z_mean-z_std,
+                z_mean+z_std,
+                (nb_samples, z_shape[1]),
+                ).astype(config.floatX)
+    pick_z = pick_z_unif
 
     def f_test(in_ctor, in_sample, layer_or_expr):
         if not __debug__:
@@ -120,7 +142,10 @@ if __name__ == "__main__":
             bbb = in_ctor(dtype=config.floatX)
         else:
             bbb = in_ctor
-        iii = in_sample
+        if isinstance(in_sample, list):
+            iii = tuple(in_sample)
+        else:
+            iii = (in_sample,)
         if isinstance(layer_or_expr, ll.Layer):
             aaa = ll.get_output(layer_or_expr, inputs=bbb)
         else:
@@ -129,7 +154,7 @@ if __name__ == "__main__":
             fff = theano.function(bbb, aaa)
         else:
             fff = theano.function([bbb], aaa)
-        print(fff(iii).shape)
+        print(fff(*iii).shape)
 
 
     print('...building generator')
@@ -145,10 +170,11 @@ if __name__ == "__main__":
     g['fc1'] = ll.DenseLayer(
         g['in'],
         num_units=256*120,
-        nonlinearity=None,
+        nonlinearity=lnl.rectify,
         W=lin.GlorotUniform(),
         b=lin.Constant(0),
     )
+    g['fc1'] = ll.batch_norm(g['fc1'])
     print("=> Now testing g-fc1", end=" ")
     f_test(T.matrix, pick_z(), g['fc1'])
 
@@ -162,10 +188,11 @@ if __name__ == "__main__":
     g['conv1'] = ll.Conv1DLayer(
             g['resh'],
             num_filters=256,
-            filter_size=13,
+            filter_size=25,
             pad='same',
-            nonlinearity=None,
+            nonlinearity=lnl.tanh,
             )
+    g['conv1'] = ll.batch_norm(g['conv1'])
     print("=> Now testing g-conv", end=" ")
     f_test(T.matrix, pick_z(), g['conv1'])
 
@@ -196,26 +223,19 @@ if __name__ == "__main__":
 
     d['gram'] = GramLayer(
             d['in'],
-            nonlinearity=None,
+            nonlinearity=lnl.leaky_rectify,
             )
 
     d['h1'] = ll.DenseLayer(
-        d['gram'],
-        num_units=73*73,
-        nonlinearity=lnl.tanh,
-        W=lin.GlorotUniform(),
-        b=lin.Constant(0)
-    )
-
-    d['h2'] = ll.DenseLayer(
-            d['h1'],
+            d['gram'],
             num_units=1,
-            nonlinearity=lnl.sigmoid,
+            nonlinearity=lnl.tanh,
             W=lin.GlorotUniform(),
             b=lin.Constant(0)
             )
+    d['h1'] = ll.batch_norm(d['h1'])
 
-    d['out'] = d['h2']
+    d['out'] = d['h1']
     x = T.tensor3()
     discriminate = ll.get_output(d['out'], inputs=x)
     discriminate = theano.function([x], discriminate)
@@ -246,7 +266,7 @@ if __name__ == "__main__":
     print("=> Now testing score_fake", end=" ")
     f_test(x_fake, pick_x(), score_fake)
 
-    t = srng.uniform((batch_size, )).dimshuffle(0, 'x')
+    t = srng.uniform((batch_size, )).dimshuffle(0, 'x', 'x')
 
     x_btwn = t * x + (1 - t) * x_fake
     score_btwn = ll.get_output(d['out'], inputs=x_btwn)
@@ -256,11 +276,14 @@ if __name__ == "__main__":
 
     gamma = 0.1
 
-    obj_g = -T.mean(score_fake)
+    joint_constraint = joint_lengths()(None, denorm(x_fake))
+    obj_g = -T.mean(score_fake) + joint_constraint
     print("=> Now testing obj_g", end=" ")
     f_test(x_fake, pick_x(), obj_g)
 
-    obj_d = -T.mean(score_true - score_fake - gamma * (grad_l2 - 1) ** 2)
+    obj_d  = -T.mean (score_true - score_fake - gamma * (grad_l2 - 1) ** 2)
+    print("=> Now testing obj_d", end=" ")
+    f_test([x, x_fake], [pick_x(), pick_x()], obj_d)
 
     params_g = ll.get_all_params(g['out'], trainable=True)
     params_d = ll.get_all_params(d['out'], trainable=True)
@@ -274,16 +297,22 @@ if __name__ == "__main__":
     updates_d = lasagne.updates.rmsprop(obj_d, params_d, lr_d)
 
     print('...compiling')
+    if __debug__:
+        mode = NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=False)
+    else:
+        mode = None
     train_g = theano.function(
         inputs=[z, lr_g],
         outputs=[obj_g],
-        updates=updates_g
+        updates=updates_g,
+        mode=mode,
     )
 
     train_d = theano.function(
         inputs=[z, x, lr_d],
         outputs=[obj_d],
-        updates=updates_d
+        updates=updates_d,
+        mode=mode,
     )
 
     predict_x = theano.function(
@@ -298,26 +327,39 @@ if __name__ == "__main__":
 
 
     print('...training')
-    n_epochs = 500
+    n_epochs = 300
+    d_steps = 4
+    g_steps = 1
 
-    lr_d = 5e-5
-    lr_g = 5e-5
+    lr_d_init = 1e-4
+    lr_g_init = 1e-4
 
     # Boucle d'apprentissage
     d_objs = np.zeros(n_epochs)
     g_objs = np.zeros(n_epochs)
     for i in range(n_epochs):
+        lr_d = lr_d_init * (1 -  1/(n_epochs - i +1))
+        lr_g = lr_g_init * (1 -  1/(n_epochs - i +1))
 
         # train discriminator
-        x = pick_x(batch_size)
-        z = pick_z(batch_size)
-        d_objs[i] = np.mean(train_d(z, x, lr_d))
-
+        x = pick_x(batch_size*d_steps)
+        z = pick_z(batch_size*d_steps)
+        d_objs[i] = np.mean([
+            train_d(z[j*batch_size:(j+1)*batch_size],
+                x[j*batch_size:(j+1)*batch_size],
+                lr_d)
+            for j in range(d_steps)])
         # train generator
-        z = pick_z(batch_size)
-        g_objs[i] = np.mean(train_g(z, lr_g))
+        z = pick_z(batch_size*g_steps)
+        g_objs[i] = np.mean([
+            train_g(z[j*batch_size:(j+1)*batch_size], lr_g)
+            for j in range(g_steps)])
+
         print("epoch {} / {} : d {} ; g {}...".
                 format(i + 1, n_epochs, d_objs[i], g_objs[i]))
+        if d_objs[i] != d_objs[i] or g_objs[i] != g_objs[i]:
+            raise RuntimeError("Got NaN in training...")
+
 
     plt.figure()
     plt.plot(d_objs, label="d_objs")
@@ -326,10 +368,11 @@ if __name__ == "__main__":
     plt.savefig('real_training.png')
     plt.show()
 
-    denorm = lambda x : x * preprocess['Xstd'] + preprocess['Xmean']
-    make = lambda x: denorm(decode(encode(generate(x))))
-    seeds = [pick_z() for _ in range(3)]
+    make = lambda x: denorm(generate(x))
+    denoise = lambda x: denorm(decode(encode(norm(x))))
+    seeds = [pick_z() for _ in range(2)]
     moves = list(map(make , seeds))
-    opinions = list(map(discriminate, moves))
+    moves += list(map(denoise, copy(moves)))
+    opinions = list(map(lambda x:discriminate(x)[0], moves))
     print("Opinion :", opinions)
-    animation_plot(moves, interval=15.15)
+    animation_plot(copy(moves), interval=15.15)
