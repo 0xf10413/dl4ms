@@ -3,6 +3,9 @@
 *.bvh
 *.swp
 *.npy
+*.mp4
+*.gz
+*.png
 __pycache__/
 data/external
 data/processed/cmu
@@ -10,3 +13,4 @@ data/processed/edin*
 data/processed/hdm05
 data/processed/mhad
 gram_trainer/cache
+gan_trainer/cache
