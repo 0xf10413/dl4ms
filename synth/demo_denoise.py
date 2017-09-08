@@ -7,8 +7,9 @@ import theano.tensor as T
 
 sys.path.append('../nn')
 
-from network import create_core
+from network import create_core, create_core_flo
 from constraints import constrain, foot_sliding, joint_lengths, trajectory, multiconstraint
+from Network import Network
 
 rng = np.random.RandomState(23455)
 
@@ -25,8 +26,8 @@ window = X.shape[2]
 
 X = theano.shared(X, borrow=True)
 
-network = create_core(batchsize=batchsize, window=window, dropout=0.0, depooler=lambda x,**kw: x/2)
-network.load(np.load('network_core.npz'))
+network = create_core_flo(batchsize=batchsize, window=window, dropout=0.0, depooler=lambda x,**kw: x/2)
+network.load(np.load('network_core_flo_all.npz'))
 
 from AnimationPlot import animation_plot
 
@@ -45,7 +46,8 @@ for _ in range(10):
     Xnois = (Xnois * preprocess['Xstd']) + preprocess['Xmean']
     Xrecn = (Xrecn * preprocess['Xstd']) + preprocess['Xmean']
 
-    Xrecn = constrain(Xrecn, network[0], network[1], preprocess, multiconstraint(
+    Xrecn = constrain(Xrecn, Network(network[0], network[1], network[2]),
+            Network(network[3], network[4], network[5]), preprocess, multiconstraint(
         foot_sliding(Xorgi[:,-4:].copy()),
         joint_lengths(),
         trajectory(Xorgi[:,-7:-4])), alpha=0.01, iterations=50)

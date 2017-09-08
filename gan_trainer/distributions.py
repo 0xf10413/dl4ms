@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
+import os
+
 import numpy as np
 import scipy
+from sklearn import mixture
+
+os.environ['THEANO_FLAGS'] = (
+    #'device=cuda'
+    'device=cpu'
+)
 
 from theano import config
 
@@ -33,6 +41,9 @@ class Distribution(object):
         distr._pdf = lambda x: np.convolve(self._pdf(x), other._pdf(x), 'same')
         distr.sample = lambda size: self.sample(size) + other.sample(size)
         return distr
+
+    def __pos__(self):
+        return self
 
 
 class GaussianDistribution(Distribution):
@@ -70,3 +81,31 @@ class LaplaceDistribution(Distribution):
     def sample(self, sample_size):
         return self.rng.laplace(loc=self.mean, scale=self.scale,
                 size=sample_size).astype(config.floatX)
+
+
+class GaussianMixture(Distribution):
+    def __init__(self, rng, sample_size, *, means, scales):
+        super().__init__(rng, sample_size)
+        assert len(means) == len(scales)
+        self.means = means
+        self.scales = scales
+        self.gaussians = [GaussianDistribution(rng, sample_size, mean=m, scale=s)
+                for (m,s) in zip (means, scales)]
+        self._pdf = lambda x: sum([g.pdf(x) for g in self.gaussians])
+
+    def sample(self, sample_size):
+        n = len(self.gaussians)
+        if isinstance(sample_size, tuple):
+            sample_size = (sample_size[0]//n, *sample_size[1:])
+        else:
+            sample_size //= n
+        output = [self.gaussians[i].sample(sample_size) for i in range(n)]
+        return np.concatenate(output, axis=0)
+
+
+if __name__ == "__main__":
+    import numpy as np
+    import matplotlib.pyplot as plt
+    X = GaussianMixture(np.random.RandomState(4), 10, means=[-.5, .5], scales=[.1, .1])
+    plt.hist(X.sample(10000), bins=100)
+    plt.show()

@@ -119,7 +119,7 @@ class SimpleGAN(object):
         score_fake = ll.get_output(self.D.layers['out'], inputs=x_fake)
 
         obj_g = -T.mean(T.log(score_fake))
-        obj_d = -T.mean(T.log(score_true) + T.log(1 - score_fake))
+        obj_d = -T.mean(T.log(score_true)) + T.mean(T.log(1 - score_fake))
 
         params_g = ll.get_all_params(self.G.layers['out'], trainable=True)
         params_d = ll.get_all_params(self.D.layers['out'], trainable=True)
@@ -246,6 +246,7 @@ class SimpleGAN(object):
                 sub[1, 0].autoscale_view()
 
                 x = x_axis[:, None].astype(config.floatX)
+                x = x_axis[:,None].repeat(self.X.sample_size, axis=1).astype(config.floatX)
                 scores = self.score_x(x)[0]
                 scores = (scores - np.min(scores)) / np.ptp(scores)  # normalization
                 curves['d_score'].set_ydata(scores)
@@ -290,8 +291,8 @@ if __name__ == "__main__":
     rng = np.random.RandomState(43)
     lasagne.random.set_rng(rng)
 
-    z_size = 5
-    x_size = 1
+    z_size = 50
+    x_size = 10
 
     G = SimpleGenerator(z_size, x_size)
     D = SimpleDiscriminator(x_size, 1)

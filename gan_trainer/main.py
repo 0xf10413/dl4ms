@@ -10,7 +10,12 @@ import lasagne
 
 from simplegan import SimpleGAN, SimpleGenerator, SimpleDiscriminator
 from wgan import WGAN, UnboundGenerator, UnboundDiscriminator
-from distributions import GaussianDistribution, UniformDistribution, LaplaceDistribution
+from distributions import (
+        GaussianDistribution,
+        UniformDistribution,
+        LaplaceDistribution,
+        GaussianMixture,
+        )
 #from dcgan import DCGAN
 
 rng = np.random.RandomState(43)
@@ -52,12 +57,13 @@ if __name__ == "__main__":
     #pairings = [(i, Xstyletransfer) for i in range(len(Xstyletransfer))]
 
     z_size = 100
-    x_size = 1
+    x_size = 5
     gan_type = "simple"
-    #gan_type = "wgan"
+    gan_type = "wgan"
 
     X = \
-        UniformDistribution(rng, x_size, a=-1, b=1)\
+        + GaussianMixture(rng, x_size, means=[-.5, .5], scales=[.1, .1]) \
+        #+ UniformDistribution(rng, x_size, a=-1, b=1)\
         #+ LaplaceDistribution(rng, x_size, mean=.1, scale=.1)\
         #+ GaussianDistribution(rng, x_size, mean=.2, scale=.1)\
         #+ GaussianDistribution(rng, x_size, mean=-.2, scale=.1)\

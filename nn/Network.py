@@ -24,6 +24,15 @@ class Network(Layer):
     def __getitem__(self, k):
         return self.layers[k]
 
+    def freeze(self):
+        """Cache les paramètres, empêche l'apprentissage"""
+        self.hidden_params = self.params
+        self.params = []
+
+    def thaw(self):
+        """Rend l'apprentissage possible après un gel"""
+        self.params = self.hidden_params
+
     def cost(self, input):
         costs = 0
         for layer in self.layers:

@@ -114,7 +114,7 @@ if __name__ == "__main__":
 
     batch_size = 1
     filter_size = 25
-    x_shape = (batch_size, 73, 240)
+    x_shape = (batch_size, 256, 120)
     #z_shape = (batch_size, 256)
     z_shape = x_shape
 
@@ -148,8 +148,26 @@ if __name__ == "__main__":
     denorm = lambda x : x * preprocess['Xstd'] + preprocess['Xmean']
     norm = lambda x : (x - preprocess['Xmean']) / preprocess['Xstd']
 
+    def build_aencoder(bsize):
+        enc_dec = create_core(
+                batchsize=bsize,
+                window=240,
+                dropout=0.0,
+                depooler=lambda x,**kw: x/2
+                )
+        enc_dec.load(np.load('../synth/network_core.npz'))
+        encode, decode = enc_dec
+        X = T.tensor3()
+        encode = theano.function([X], encode(X))
+        decode = theano.function([X], decode(X))
+        return encode, decode
+
+    encode, decode = build_aencoder(len(X_train))
     X_train = norm(X_train)
+    X_train = encode(X_train)
+    encode, decode = build_aencoder(len(X_train_rev))
     X_train_rev = norm(X_train_rev)
+    X_train_rev = encode(X_train_rev)
 
     def pick_x(nb_samples=batch_size):
         assert nb_samples < len(X_train), "Not enough samples in pick_x"
@@ -218,41 +236,80 @@ if __name__ == "__main__":
 
     g['fc1'] = ll.DenseLayer(
         g['in'],
-        num_units=256*120,
+        num_units=256*15,
         nonlinearity=None,
         W=lin.GlorotUniform(),
         b=lin.Constant(0),
     )
+    #g['fc1'] = ll.batch_norm(g['fc1'])
     print("=> Now testing g-fc1", end=" ")
     f_test(T.tensor3, pick_z(), g['fc1'])
 
     g['resh'] = ll.ReshapeLayer(
         g['fc1'],
-        shape=(batch_size, 256, 120),
+        shape=(batch_size, 256, 1, 15),
     )
     print("=> Now testing g-resh", end=" ")
     f_test(T.tensor3, pick_z(), g['resh'])
 
-    #g['conv1'] = ll.Conv1DLayer(
-    #        g['resh'],
-    #        num_filters=256,
-    #        filter_size=13,
-    #        pad='same',
-    #        nonlinearity=None,
-    #        )
-    #print("=> Now testing g-conv", end=" ")
-    #f_test(T.tensor3, pick_z(), g['conv1'])
-
-    g['dec'] = DL4MSLayer(
+    g['conv1'] = ll.TransposedConv2DLayer(
             g['resh'],
-            batch_size=batch_size,
+            num_filters=256,
+            filter_size=(1,3),
+            stride=2,
+            nonlinearity=None,
             )
-    encode = g['dec'].encoder
-    decode = g['dec'].decoder
-    print("=> Now testing g-dec", end=" ")
-    f_test(T.tensor3, pick_z(), g['dec'])
+    print("=> Now testing g-conv", end=" ")
+    f_test(T.tensor3, pick_z(), g['conv1'])
 
-    g['out'] = g['dec']
+
+    g['conv2'] = ll.TransposedConv2DLayer(
+            g['conv1'],
+            num_filters=256,
+            filter_size=(1,7),
+            stride=2,
+            nonlinearity=None,
+            )
+    print("=> Now testing g-conv2", end=" ")
+    f_test(T.tensor3, pick_z(), g['conv2'])
+
+    g['conv3'] = ll.TransposedConv2DLayer(
+            g['conv2'],
+            num_filters=256,
+            filter_size=(1,13),
+            stride=2,
+            nonlinearity=None,
+            )
+    print("=> Now testing g-conv3", end=" ")
+    f_test(T.tensor3, pick_z(), g['conv3'])
+
+    g['dropdim3'] = ll.SliceLayer(
+            g['conv3'],
+            slice(13, 120+13),
+            axis=3,
+            )
+    print("=> Now testing g-dropdim3", end=" ")
+    f_test(T.tensor3, pick_z(), g['dropdim3'])
+
+    g['resh2'] = ll.ReshapeLayer(
+        g['dropdim3'],
+        shape=(batch_size, 256, 120),
+    )
+    print("=> Now testing g-resh2", end=" ")
+    f_test(T.tensor3, pick_z(), g['resh2'])
+
+
+    #g['dec'] = DL4MSLayer(
+    #        g['resh2'],
+    #        batch_size=batch_size,
+    #        )
+    #encode = g['dec'].encoder
+    #decode = g['dec'].decoder
+    #print("=> Now testing g-dec", end=" ")
+    #f_test(T.tensor3, pick_z(), g['dec'])
+
+
+    g['out'] = g['resh2']
 
     print("=> Now testing generator", end=" ")
     f_test(T.tensor3, pick_z(), g['out'])
@@ -271,29 +328,66 @@ if __name__ == "__main__":
     d['in'] = ll.InputLayer(
         shape=x_shape,
         )
+    print("=> Now testing d-in", end=" ")
+    f_test(T.tensor3, pick_x(), d['in'])
 
-    d['gram'] = GramLayer(
+    #d['gram'] = GramLayer(
+    #        d['in'],
+    #        nonlinearity=None,
+    #        )
+    #print("=> Now testing d-gram", end=" ")
+    #f_test(T.tensor3, pick_x(), d['gram'])
+
+    #d['h1'] = ll.DenseLayer(
+    #        d['gram'],
+    #        num_units=256,
+    #        nonlinearity=lnl.rectify,
+    #        W=lin.GlorotUniform(),
+    #        b=lin.Constant(0)
+    #        )
+    #print("=> Now testing d-h1", end=" ")
+    #f_test(T.tensor3, pick_x(), d['h1'])
+
+    d['conv1'] = ll.Conv1DLayer(
             d['in'],
+            num_filters=512,
+            filter_size=25,
             nonlinearity=None,
+            stride=2,
             )
+    print("=> Now testing d-conv1", end=" ")
+    f_test(T.tensor3, pick_x(), d['conv1'])
+
+    d['conv2'] = ll.Conv1DLayer(
+            d['conv1'],
+            num_filters=1024,
+            filter_size=15,
+            stride=2,
+            nonlinearity=lnl.leaky_rectify,
+            )
+    print("=> Now testing d-conv2", end=" ")
+    f_test(T.tensor3, pick_x(), d['conv2'])
+
+    d['conv3'] = ll.Conv1DLayer(
+            d['conv2'],
+            num_filters=2048,
+            filter_size=9,
+            nonlinearity=lnl.leaky_rectify,
+            stride=2,
+            )
+    print("=> Now testing d-conv3", end=" ")
+    f_test(T.tensor3, pick_x(), d['conv3'])
 
     d['h1'] = ll.DenseLayer(
-        d['gram'],
-        num_units=73*73,
-        nonlinearity=lnl.tanh,
-        W=lin.GlorotUniform(),
-        b=lin.Constant(0)
-    )
-
-    d['h2'] = ll.DenseLayer(
-            d['h1'],
+            d['conv1'],
             num_units=1,
-            nonlinearity=lnl.sigmoid,
-            W=lin.GlorotUniform(),
-            b=lin.Constant(0)
+            nonlinearity=None,
+            b=None,
             )
+    print("=> Now testing d-h2", end=" ")
+    f_test(T.tensor3, pick_x(), d['h1'])
 
-    d['out'] = d['h2']
+    d['out'] = d['h1']
     x = T.tensor3()
     discriminate = ll.get_output(d['out'], inputs=x)
     discriminate = theano.function([x], discriminate)
@@ -355,8 +449,8 @@ if __name__ == "__main__":
     lr_g = T.scalar(dtype=config.floatX)
     lr_d = T.scalar(dtype=config.floatX)
 
-    updates_g = lasagne.updates.rmsprop(obj_g, params_g, lr_g)
-    updates_d = lasagne.updates.rmsprop(obj_d, params_d, lr_d)
+    updates_g = lasagne.updates.adam(obj_g, params_g, lr_g, beta1=0, beta2=0.9)
+    updates_d = lasagne.updates.adam(obj_d, params_d, lr_d, beta1=0, beta2=0.9)
 
 
     ## Inverse
@@ -485,9 +579,9 @@ if __name__ == "__main__":
     print('...training')
     n_epochs = 300
 
-    lr_d = 5e-5
-    lr_g = 5e-5
-    lr_c = 5e-5
+    lr_d = 1e-10
+    lr_g = 1e-10
+    lr_c = 1e-10
 
     # Boucle d'apprentissage
     d_objs = np.zeros(n_epochs)

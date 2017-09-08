@@ -37,7 +37,7 @@ class UnboundGenerator(object):
                 shape=(None, in_size),
                 )
         self.layers['hidden1'] = ll.DenseLayer(
-                self.layers['in'], num_units=10,
+                self.layers['in'], num_units=50,
                 nonlinearity=lnl.tanh,
                 W=lin.GlorotUniform(),
                 b=lin.Constant(0),
@@ -175,8 +175,8 @@ if __name__ == "__main__":
     rng = np.random.RandomState(43)
     lasagne.random.set_rng(rng)
 
-    z_size = 5
-    x_size = 1
+    z_size = 50
+    x_size = 10
 
     G = UnboundGenerator(z_size, x_size)
     D = UnboundDiscriminator(x_size, 1)

@@ -40,12 +40,12 @@ def create_network(batchsize, window):
     return network
 
 pairings = [
-   (240, Xstyletransfer, 241, Xstyletransfer,  .0001),
+   #(240, Xstyletransfer, 241, Xstyletransfer,  .0001),
 
-   #(30, Xedin_punch, 321, Xstyletransfer,  .0001), ## flo: vidéos sur 30
-   #(30, Xedin_punch, 321, Xstyletransfer,  .001),
-   #(30, Xedin_punch, 321, Xstyletransfer,  .01),
-   #(30, Xedin_punch, 321, Xstyletransfer,  .1),
+   (30, Xedin_punch, 321, Xstyletransfer,  .0001), ## flo: vidéos sur 30
+   (30, Xedin_punch, 321, Xstyletransfer,  .001),
+   (30, Xedin_punch, 321, Xstyletransfer,  .01),
+   (30, Xedin_punch, 321, Xstyletransfer,  .1),
 
    #(230, Xedin_locomotion, 321, Xstyletransfer,  0.1),
    #(234, Xedin_locomotion,  39, Xstyletransfer,  0.1),
@@ -80,6 +80,11 @@ for content_clip, content_database, style_clip, style_database, style_amount in 
 
     def gram_matrix(X):
         return T.sum(X.dimshuffle(0,'x',1,2) * X.dimshuffle(0,1,'x',2), axis=3)
+    def to_gram():
+        X = T.tensor3()
+        G = T.sum(X.dimshuffle(0,'x',1,2) * X.dimshuffle(0,1,'x',2), axis=3)
+        return theano.function([X], G)
+    to_gram = to_gram()
     def implot(X,title=""):
         plt.imshow(X)
         plt.colorbar()
@@ -130,7 +135,8 @@ for content_clip, content_database, style_clip, style_database, style_amount in 
 
     from AnimationPlot import animation_plot
 
-    #np.savez_compressed('X_styletransfer_{}.npz'.format(style_amount), Xtrsf=Xtrsf)
+    #np.savez_compressed('X_styletransfer_{}_{}.npz'.
+    #        format(content_clip, style_clip), Xtrsf=Xtrsf)
 
     animation_plot([Xstyl, Xcntn, Xtrsf], interval=15.15)
 
