@@ -25,10 +25,12 @@ if bpy.context.mode != 'OBJECT':
 cur_obj = bpy.context.active_object
 
 # Récupération des mouvements
+# ATTENTION : le fichier peut varier, et le nom du tableau dans le .npz aussi
+# ATTENTION : tous les fichier de sortie .npz n'ont pas nécessairement de courbe associée
 npz = np.load(r'C:\Users\p1619885\python\curves\X_regression.npz')
-Xrecn = npz['Xrecn']#[0,3:-7,:]
+Xrecn = npz['Xrecn']#[0,3:-7,:]  # Données de squelette
 Xrecn = np.swapaxes(Xrecn[0], 0, 1)
-Xtraj = npz['curve'][0,...]
+Xtraj = npz['curve'][0,...] # Données de trajectoire
 Xtraj = np.swapaxes(Xtraj,1,0)
 
 print(Xtraj.shape) # 7200 frames x 3 données de position (vx, vy, omega)
@@ -81,6 +83,7 @@ mesh.animation_data.action = action
 # Animation du squelette
 for j in range(len(parents)):
     data_path = "vertices[%d].co"
+    # fcurve est répétée 4 fois pour dessiner des rectangles
     fcurves = [action.fcurves.new(data_path % (4*j), i) for i in range(3)]
     fcurves += [action.fcurves.new(data_path % (4*j+1), i) for i in range(3)]
     fcurves += [action.fcurves.new(data_path % (4*j+2), i) for i in range(3)]
