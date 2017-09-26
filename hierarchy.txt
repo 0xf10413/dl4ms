@@ -1,0 +1,140 @@
+- nn : classes custom pour l'apprentissage avec theano
+ - ActivationLayer.py : un callable qui hérite de Layer, initialisable à quelques fonctions
+   pré-déterminées (Relu, LRelu, ELu, softplus, tanh, sigmoid, identite, ou une fonction custom)
+ - AdamTrainer.py : entraîne un réseau suivant l'algorithme Adam (un type de SGD). Le coût prend
+   aussi en compte le coût du réseau (la régularité L1/L2 = la parcimonie)
+ - AnimationPlot.py : vraisemblablement un outil d'animation, mais utilise le format spécifique
+   de squelette
+ - BiasLayer.py : un callable qui hérite de Layer, représente juste le biais (vecteur b). Indique
+   b comme un paramètre variable.
+ - Conv1DLayer.py : un callable qui hérite de Layer, représente une couche de convolution.
+   Initialise les poids avec +/- sqrt(6/(fan_in+fan_out)), comme dans le tuto théano.
+   Le coût de la couche est la moyenne des |W_i,j,...|. Il utilise conv2d de theano, mais se
+   ramène à une convolution 1D en mettant l'input (2D) au milieu d'un bloc 3D : filter.y/2 - 1
+   couches de zéros, puis l'input, puis filter.y/2 - 1 couches de zéros. (à relire)
+ - Depool1DLayer.py : ?? Semble appliquer un masque sur l'input, puis le redimensionner pour
+   obtenir la bonne dimension de sortie. Possède deux modes : "random" et "first" (à relire)
+ - DropoutLayer.py : perd aléatoirement (selon une loi binomiale de paramètre choisi à la
+   construction) des inputs en les mettant à 0
+ - Layer.py : classe de base pour les couches. Définit load/save, pour "sérialiser"
+ - Network.py : accumulateur de couches. Les relie entre elles successivement : Network(Network(
+   a,b), Network(c,d)) donne a -> b -> c -> d
+ - Pool1DLayer.py : semble pooler (avec self.pooler, default = max) sur une certaine dimension
+   l'input.
+
+- motion : classes custom pour afficher des squelettes
+ - Animation*.py : gros paquets de classes pour interagir avec maya. possiblement bugué
+   (clas -> cls)
+ - AStar.py : applique A* sur un graphe, défini par une fonction de voisin (f : x -> [voisins de
+   x]).
+ - BVH.py : un parser de bvh. Lit et écrit des Animations dans un bvh
+ - InverseKinematics.py : des outils de cinématique inversée (position du corps -> angles des
+   jointures). Interface un peu confuse...
+ - Pivots.py : une classe pivot (np.array de rotations angulaires)
+ - Quaternions.py : une classe pour manipuler des quaternions (avec les surcharges d'op)
+ - TimeWarp.py : algo de dynamic time warping, utilisé pour le retargetting des données de
+   kinect. Réutilise A*.
+
+- data : de gros répertoires de données brutes de capture, retarget-ées sur un squelette
+  standard (le premier de la CMU). BDD : cmu (carnegie mellon university), hdm05
+  (<université allemande>), mhad (berkeley multimodal human action database), edin
+  (des auteurs), styletransfer (non-fournie, inaccessible, cf readme). Plus de détails après.
+ - crowddata.npz : ??? utilisé dans une démo. Données de foule ?
+ - curves.npz :  des courbes. utilisé dans demo_regression
+ - external : données de bdd brutes (non-retarget). Seulement quelques edin_*.
+ - processed : outils de retarget, d'export, de visionnage & données de sortie.
+  - */ : données retarget-ées, plus la position de repos (rest.bvh)
+  - */rest.bvh : une forme au repos. Tous les rest.bvh sont identiques.
+  - classes.txt : une liste de "classes" de mouvements, écrit mais jamais lu. Construit à partir
+    d'une map.
+  - data_*.npz : données retarget-ées puis exportées
+  - retarget_*.py : scripts individuels de retarget. Un par bdd.
+  - export.py : transforme les bdd en fichier numpy : *.bvh -> .npz. Il récupère les classes de
+    mouvement pour hdm05 et stylestransfer.
+  - skel_motionbuilder.bvh : un squelette différent de rest.bvh, mais avec la même structure
+    et les mêmes tailles d'os. Comme rest.bvh, mais avec un angle différent dans les jambes.
+  - view.py : permet de voir le contenu d'une bdd en affichant 3 par 3 des mouvements pris au
+    hasard dans la db, 10 fois. Choisir la bdd en décommentant le code avant.
+
+- synth : synthèse des éléments précédent. contient l'entraînement, et d'autres outils.
+  - constraints.py : un set de fonctions qui semblent définir des contraintes : taille des os,
+    trajectoire, "foot sliding", et une fonction constrain d'entraînement générale
+  - network.py : réutilise nn/, donne 3 fonctions permettant de définir 3 types de réseaux
+    prédéfinis
+  - show_*.py : scripts pour afficher l'état du NN
+   - show_regression.py : fait 5 démos avec le régresseur, en prenant des mouvements
+     aléatoirement dans la liste des mouvements préprocessés.
+   - show_reproductions.py : fait 5 démos avec l'encodeur-décodeur, pour vérifier que
+     les mouvements sont bien reproduits.
+   - show_weights.py : montre les coefficients des poids de l'autoencodeur.
+     Pas encore sûr de la représentation exacte utilisée, mais les données sont en
+	 ligne et ça a une interprétation sur les jointures (cf papier).
+  - train*.py : scripts d'entraînement
+   - train.py : script principal, à appeler en premier. Récupère toutes les bdd, les concatène,
+     "normalise" d'une façon assez étrange... Stocke mean & std dans preprocess_core.npz.
+     Crée un réseau "core", l'autoencodeur, puis l'entraîne. (cf relations (1) et (2))
+   - train_footstepper.py : préprocess eding_locomotion pour former preprocess_footstepper,
+     entraîne un réseau type "footstepper" dessus. Semble être le réseau de l'équation (9).
+	 Note: n'utilise PAS le réseau core précédent.
+   - train_regression.py : utilise data_edin_locomotion (non-préprocess), entraîne un "régresseur"
+     concaténé au "core". C'est le réseau de la relation (4), à la différence que psi arrive
+	 après le ReLU, et qu'il manque le décodeur en bout de chaîne.
+   - train_regression_kicking.py : idem qu'avant, mais s'entraîne spécifiquement sur les mouvement
+     d'attaque (hypothèse seulement : semble piocher un peu au hasard des données dans data_hdm05)
+   - train_regression_punching.py : idem.
+  - demo_*.py : scripts de démo, après l'entraînement
+   - demo_basis.py : essaie de montrer les mouvements dans la base cachée de l'autoencodeur (à relire)
+   - demo_crowd.py : utilise les données de crowddata.npz pour générer des animations de personnages.
+     Beaucoup de choses étranges dans le code (magic numbers).
+   - demo_denoise.py : prend des mouvements rand dans data/processed, ajoute du bruit, les donne à
+     l'autoencodeur dans le but de les débruiter. Ajoute des contraintes (trajectoire, sliding, joint
+	 length). Semble donner des mouvements moins bruités que l'original. Crash au bout de la deuxième
+	 itération (incompatibilité de taille)
+   - demo_kicking.py : regénère des coups de pieds à partir de la position des pieds
+   - demo_kinect.py : regénère les mouvements de xsens à partir de xkinect (bruité) (autencodeur only)
+   - demo_missing.py : création de trous dans cmu (positions = 0), puis reconstruction avec l'autoencodeur
+   - demo_punching.py : comme kicking, mais avec des données de base différentes
+   - demo_regression.py : utilise le regresseur+décodeur pour suivre des portions de curves.npz.
+     Animation de marche selon des courbes, mais l'affichage est pas génial
+   - demo_stepped.py : création de saccades (eg, 60fps -> .5 fps), puis reconstruction avec l'autoencodeur
+   - demo_style_transfer.py : applique un transfert de style sur une animation (note : aucune
+     autre contrainte n'est appliquée, en particulier pas la trajectoire)
+
+
+== Détails sur le retargetting+export ==
+Étape 1 : bdd dans external/ sont retarget-ées sur un squelette "standard" (le premier de cmu),
+   "rest". C'est fait par tous les processed/retarget_*.py. Crée des sous-dossier dans
+   processed/, et ça a déjà été fait. Par défaut, seules les bdd edin* sont incluses dans
+   external, les autres sont à re-dl.
+Étape 2 : conversion du format de données en un format utilisable par le code du papier. Entre
+   autres, place le mouvement au sol, rend la pose "locale" à la direction "vers l'avant",
+   annote les contacts des pieds au sol. Crée des npz dans processed/. Déjà fait.
+   On peut utiliser view.py pour visualiser les données.
+
+== Détails sur l'autencodeur ==
+Voir core_network.png pour un aperçu de la forme. Généré avec d3viz, script ajouté au git.
+Il est en 3 morceaux : le bruit au début (Dropout), l'encodeur (Conv1D, Bias, Activation,
+Pool1D) et le décodeur (Depool1D, Dropout, Conv1D, Bias). self.layers[1] donne accès directement
+au décodeur.
+
+== Détails sur les bdd ==
+- cmu : gigantesque qté de mouvements
+- hdm05 : petits clips de mouvements individuels (rondade, taper dans les mains)
+- mhad : des actions répétées plusieurs fois
+- edin_locomotion : des clips longs de marche, dont : courir, marcher, faire du jogging,
+  pas de côté. Environ 20 minutes de données non-segmentées en foulées différentes.
+- edin_locomotion_valid : d'autres clips de marche, mais quel lien avec edin_locomotion ?
+- edin_kinect : grande qté de mouvements capturé par kinect. Bcp d'erreurs et d'artefacts.
+- edin_xsens : même moves que edin_kinect, mais avec un autre système de motion tracking (xsens).
+  Bdd en fait non-fournie, seulement l'export. Correspondance exacte avec edin_kinect (à la
+  frame près).
+- edin_misc : mouvements random, avec plur styles de marches. Dont zombie marche/court, singe et
+  gorille, aïkido. Des artefacts par moment.
+- edin_punching : animations de combat : coups de poing, de pied, déplacement en mode combat.
+- edin_terrain : animation de marche & saut à différentes hauteurs
+- styletransfer : missing! récupérée auprès d'arthur. Des styles de marche : enfant, fier, ...
+  complètement segmentée. Version d'arthur : déjà processée ?
+
+
+Un petit tuto sur comment utiliser d3viz:
+http://deeplearning.net/software/theano/_downloads/index.ipynb

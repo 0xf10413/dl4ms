@@ -10,7 +10,7 @@ Les dossiers suivants faisaient partie du code original :
 - synth : fichiers python de démonstration et d'apprentissage
 
 À quelques exceptions près, les fichiers originaux sont restés.
-Consulter hier.txt pour plus de détail sur la hiérarchie originale.
+Consulter hierarchy.txt pour plus de détails sur la hiérarchie originale.
 
 blender
 -------
@@ -145,5 +145,3 @@ Données de mouvement :
 - real_gan_wdl4ms.py
 - real_gan_wdl4ms_unfact.py
 - real_gan_working.py
-
- 
